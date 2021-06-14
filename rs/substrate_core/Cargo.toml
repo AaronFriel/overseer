@@ -1,0 +1,27 @@
+[package]
+name = "overseer_substrate_core"
+version = "0.1.0"
+authors = ["Aaron Friel <mayreply@aaronfriel.com>"]
+edition = "2018"
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[features]
+default = []
+vanguard = []
+
+[dependencies]
+bitflags = "1.2.1"
+dyn-clonable = "0.9.0"
+dyn_partial_eq = "0.1.2"
+serde = { version = "1.0.125", features = ["derive"] }
+serde-diff = "0.4.1"
+strum = { version = "0.21.0", features = ["derive"] }
+
+[dependencies.typetag]
+git = "https://github.com/AaronFriel/typetag"
+features =["runtime"]
+default-features = false
+
+[dev-dependencies]
+insta = "1.7.1"
+serde_json = "1.0.64"

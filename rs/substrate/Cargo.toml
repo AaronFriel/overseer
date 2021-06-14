@@ -1,0 +1,13 @@
+[package]
+name = "overseer_substrate"
+version = "0.1.0"
+authors = ["Aaron Friel <mayreply@aaronfriel.com>"]
+edition = "2018"
+
+[features]
+default = []
+vanguard = ["overseer_substrate_core/vanguard"]
+
+[dependencies]
+overseer_substrate_macros = { path = "../substrate_macros" }
+overseer_substrate_core = { path = "../substrate_core" }

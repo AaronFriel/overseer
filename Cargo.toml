@@ -2,10 +2,11 @@
 
 members = [
   "rs/magistrate",
-  # "rs/magistrate_macros",
+  "rs/substrate_macros",
+  "rs/substrate_core",
   "rs/substrate",
   # "rs/cli",
-  # "rs/playground",
+  # "rs/sandbox",
 ]
 
 [profile.release]
