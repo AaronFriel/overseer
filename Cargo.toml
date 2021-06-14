@@ -1,0 +1,14 @@
+[workspace]
+
+members = [
+  "rs/magistrate",
+  # "rs/magistrate_macros",
+  "rs/substrate",
+  # "rs/cli",
+  # "rs/playground",
+]
+
+[profile.release]
+# Tell `rustc` to optimize for small code size.
+# opt-level = "s"
+lto = true
