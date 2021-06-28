@@ -41,4 +41,12 @@ impl ChoiceOption {
   pub fn is_object(&self) -> bool {
     matches!(self, Self::Object(..))
   }
+
+    pub fn as_custom(&self) -> Option<&String> {
+        if let Self::Custom(v) = self {
+            Some(v)
+        } else {
+            None
+        }
+    }
 }

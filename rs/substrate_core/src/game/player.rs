@@ -1,15 +1,15 @@
 use serde::{Deserialize, Serialize};
 use serde_diff::SerdeDiff;
 
-use crate::game::{CardList, Zone, ZoneKind};
+use crate::game::{Card, Zone, ZoneKind};
 
 #[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug, Default)]
 #[derive(Serialize, Deserialize, SerdeDiff)]
 pub struct Player {
   pub name: String,
 
-  pub deck: CardList,
-  pub sideboard: CardList,
+  pub deck: Vec<Card>,
+  pub sideboard: Vec<Card>,
 
   pub library: Zone,
   pub hand: Zone,
@@ -22,7 +22,7 @@ pub struct Player {
 }
 
 impl Player {
-  pub fn new<T>(name: T, deck: CardList, sideboard: CardList) -> Self
+  pub fn new<T>(name: T, deck: Vec<Card>, sideboard: Vec<Card>) -> Self
   where
     T: Into<String>,
   {

@@ -28,7 +28,7 @@ pub enum StateAction {
 #[derive(Clone, PartialEq, Hash, Debug, Default)]
 #[derive(Serialize, Deserialize, SerdeDiff)]
 pub struct Game {
-  pub cards: CardList,
+  pub cards: Vec<Card>,
   pub players: Vec<Player>,
   pub active_player: PlayerHandle,
 
@@ -36,7 +36,8 @@ pub struct Game {
 }
 
 impl Game {
-  pub fn new(cards: CardList, players: Vec<Player>) -> Self {
+  // TODO: Determine a better way to declare a game and set of valid cards?
+  pub fn new(cards: Vec<Card>, players: Vec<Player>) -> Self {
     Self {
       cards,
       players,
@@ -92,8 +93,12 @@ impl PlayerHandle {
     PlayerHandle(value as usize)
   }
 
-  pub(crate) fn to_index(self) -> usize {
+  pub(crate) fn to_index(&self) -> usize {
     self.0 as usize
+  }
+
+  pub fn number(&self) -> usize {
+    self.0 + 1
   }
 }
 

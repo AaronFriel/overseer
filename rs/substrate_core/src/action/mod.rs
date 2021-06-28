@@ -10,10 +10,13 @@ use crate::{
   interface::ChoiceOption,
 };
 
-#[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
+#[derive(Clone, PartialEq, Hash, Debug)]
 #[derive(Serialize, Deserialize, SerdeDiff)]
+#[serde_diff(opaque)]
 pub enum ActionResult {
   Step,
+  Do(Box<dyn Action>),
+  DoMulti(ActionList),
   Prompt(ChoicePrompt),
   Resolved,
 }
@@ -42,10 +45,9 @@ pub enum PromptKind {
 #[derive(Serialize, Deserialize, SerdeDiff)]
 pub enum PromptResult {
   None,
-  Selected(ChoiceOption),
-  MultiSelected(Vec<ChoiceOption>),
-  Shuffled(Vec<ChoiceOption>),
-  Sorted(Vec<ChoiceOption>),
+  Selected(usize),
+  Unordered(Vec<usize>),
+  Ordered(Vec<usize>),
 }
 
 #[typetag::serde(tag = "kind")]
@@ -54,6 +56,8 @@ pub enum PromptResult {
 pub trait Action: core::fmt::Debug + ActionHash + Clone {
   fn apply(&mut self, game: &mut Game, choice: PromptResult) -> ActionResult;
 }
+
+pub type ActionList = Vec<Box<dyn Action>>;
 
 pub trait ActionHash {
   fn hash_value(&self) -> u64;

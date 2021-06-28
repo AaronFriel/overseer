@@ -63,7 +63,7 @@ impl Card {
 #[serde(transparent)]
 pub struct CardHandle(usize);
 
-pub type CardList = Vec<CardHandle>;
+pub type CardList = Vec<Card>;
 
 #[cfg(test)]
 mod test {
