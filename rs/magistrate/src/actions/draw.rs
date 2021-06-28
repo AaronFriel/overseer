@@ -6,7 +6,6 @@ use overseer_substrate::{
 use serde::{Deserialize, Serialize};
 use serde_diff::SerdeDiff;
 
-
 #[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
 #[derive(DynPartialEq, Serialize, Deserialize, SerdeDiff)]
 
@@ -14,8 +13,6 @@ pub struct Draw {
   pub player: PlayerHandle,
   pub count: u16,
 }
-
-
 
 #[typetag::serde]
 impl Action for Draw {
@@ -26,18 +23,16 @@ impl Action for Draw {
       println!("  DRAW: Drawing {} cards", self.count);
 
       let collect: ActionList = std::iter::repeat(
-          (DrawOne {
-            player: self.player,
-          })
-          .into(),
-        )
-        .take(self.count as usize)
-        .collect();
+        (DrawOne {
+          player: self.player,
+        })
+        .into(),
+      )
+      .take(self.count as usize)
+      .collect();
 
       self.count = 0;
-      DoMulti(
-        collect,
-      )
+      DoMulti(collect)
     } else {
       println!("  DRAW: Complete");
       Resolved
@@ -54,7 +49,6 @@ pub struct DrawOne {
 #[typetag::serde]
 impl Action for DrawOne {
   fn apply(&mut self, game: &mut Game, _: PromptResult) -> ActionResult {
-
     use ActionResult::*;
 
     let player = game.get_player_mut(self.player);

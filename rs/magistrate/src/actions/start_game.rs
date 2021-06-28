@@ -3,7 +3,7 @@ use overseer_substrate::{action::*, game::*, interface::*};
 use serde::{Deserialize, Serialize};
 use serde_diff::SerdeDiff;
 
-use crate::actions::{Draw, ShuffleDeckIntoLibrary, ShuffleHandIntoLibrary};
+use crate::actions::{Draw, MulliganDiscard, ShuffleDeckIntoLibrary, ShuffleHandIntoLibrary};
 
 const CHOICE_YES_NO: [ChoiceOption; 2] = [ChoiceOption::Yes, ChoiceOption::No];
 
@@ -20,15 +20,6 @@ pub enum StartGame {
     discard_to: usize,
     current_player: PlayerHandle,
     players_declaring_mulligans: Vec<PlayerHandle>,
-  },
-  TakeMulligansShuffle {
-    discard_to: usize,
-    players_declared: Vec<PlayerHandle>,
-  },
-  TakeMulligansDiscard {
-    discard_to: usize,
-    current_player: PlayerHandle,
-    players_declared: Vec<PlayerHandle>,
   },
 }
 
@@ -154,124 +145,43 @@ impl Action for StartGame {
           };
 
           Step
-        } else if players_declaring_mulligans.len() == 0 {
+        } else if players_declaring_mulligans.len() == 0 || *discard_to == 0 {
           Resolved
-        } else {
-          *self = TakeMulligansShuffle {
-            discard_to: *discard_to,
-            players_declared: std::mem::take(players_declaring_mulligans),
-          };
-
-          Step
-        }
-      }
-      (
-        TakeMulligansShuffle {
-          discard_to,
-          players_declared,
-        },
-        _,
-      ) => {
-        let actions: ActionList = players_declared
-          .iter()
-          // Remember: LIFO order
-          .map(|player| {
-            vec![
-              Draw {
-                player: *player,
-                count: 7,
-              }
-              .into(),
-              ShuffleHandIntoLibrary { player: *player }.into(),
-            ]
-          })
-          .flatten()
-          .collect();
-
-        *self = TakeMulligansDiscard {
-          discard_to: *discard_to,
-          current_player: *players_declared.first().unwrap(),
-          players_declared: std::mem::take(players_declared),
-        };
-
-        DoMulti(actions)
-      }
-      (
-        TakeMulligansDiscard {
-          ref discard_to,
-          ref current_player,
-          ref mut players_declared,
-        },
-        PromptResult::None,
-      ) => {
-        let player = game.get_player_mut(*current_player);
-        let next_player = players_declared
-          .iter()
-          .skip_while(|x| **x != *current_player)
-          .skip(1)
-          .cloned()
-          .next();
-
-        if player.hand.cards.len() > *discard_to {
-          let choices: Vec<ChoiceOption> = player
-            .hand
-            .cards
+        } else if let Some(next_current_player) = players_declaring_mulligans.first() {
+          let take_mulligan_actions = players_declaring_mulligans
             .iter()
-            .map(|x| ChoiceOption::Custom(x.name.to_string()))
+            .map(|player| {
+              vec![
+                MulliganDiscard {
+                  discard_to: *discard_to,
+                  player: *player,
+                }
+                .into(),
+                Draw {
+                  player: *player,
+                  count: 7,
+                }
+                .into(),
+                ShuffleHandIntoLibrary { player: *player }.into(),
+              ]
+            })
+            .flatten()
             .collect();
 
-          Prompt(ChoicePrompt {
-            player_handle: Some(*current_player),
-            kind: PromptKind::Select,
-            // TODO: Incorrect, forging ahead
-            visibility: Visibility::AllPlayers,
-            choices,
-            prompt: "Choose a card to place on the bottom of your library".into(),
-          })
-        } else if let Some(next_player) = next_player {
-          *self = TakeMulligansDiscard {
-            discard_to: *discard_to,
-            current_player: next_player,
-            players_declared: std::mem::take(players_declared),
-          };
-
-          Step
-        } else if *discard_to > 0 {
-          // Return to declaring mulligans
           *self = DeclareMulligans {
+            current_player: *next_current_player,
             discard_to: *discard_to - 1,
-            current_player: *current_player,
-            players_declaring_mulligans: std::mem::take(players_declared),
+            players_declaring_mulligans: std::mem::take(players_declaring_mulligans),
           };
 
-          Step
+          DoMulti(take_mulligan_actions)
         } else {
           Resolved
         }
-      }
-      (TakeMulligansDiscard { current_player, .. }, PromptResult::Selected(card_idx)) => {
-        let player = game.get_player_mut(*current_player);
-
-        let removed_card = player.hand.cards.remove(card_idx);
-        println!("Moving card {} to bottom of library", removed_card.name);
-        player.library.cards.insert(0, removed_card);
-
-        Step
       }
       uhoh => {
         unimplemented!("Error handling. Oops: {:?}", uhoh);
       }
     }
   }
-}
-
-pub enum TakeMulligan {
-  ShuffleLibrary {
-    player: PlayerHandle,
-    discard_to: usize,
-  },
-  DiscardCard {
-    player: PlayerHandle,
-    discard_to: usize,
-  },
 }
