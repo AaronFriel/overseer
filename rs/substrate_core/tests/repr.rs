@@ -15,7 +15,7 @@ fn zone_repr() {
   "###);
 }
 
-fn make_player() -> Player<'static> {
+fn make_player() -> Player {
   Player::new("Overseer", vec![], vec![])
 }
 
@@ -55,7 +55,7 @@ fn player_handle_repr() {
 
 #[test]
 fn game_repr() {
-  let game: Game<'static> = Game::new(vec![], vec![make_player()]);
+  let game: Game = Game::new(vec![], vec![make_player()]);
 
   assert_yaml_snapshot!(game, @r###"
   ---
@@ -87,9 +87,9 @@ fn game_repr() {
 /*
 #[test]
 fn game_diff_repr() {
-  let game: Game<'static> = Game::new(vec![], vec![make_player(), make_player()]);
+  let game: Game = Game::new(vec![], vec![make_player(), make_player()]);
 
-  let mut game_two: Game<'static> = game.clone();
+  let mut game_two: Game = game.clone();
   game_two.set_active_player(game_two.get_players().last().unwrap());
   game_two.get_player_mut(game_two.active_player).life = 30;
 

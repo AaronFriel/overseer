@@ -3,7 +3,10 @@ use std::borrow::Cow;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_diff::SerdeDiff;
 
-use crate::game::{ManaCost, ObjectColor, PlayerHandle, TypeLine};
+use crate::{
+  game::{ManaCost, ObjectColor, PlayerHandle, TypeLine},
+  make_refcounted_pool,
+};
 
 #[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
 #[derive(Serialize, Deserialize, SerdeDiff)]
@@ -19,9 +22,9 @@ pub enum ObjectKind {
 
 #[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
 #[derive(Serialize, Deserialize, SerdeDiff)]
-pub struct Object<'a> {
+pub struct Object {
   kind: ObjectKind,
-  characteristics: Option<Characteristics<'a>>,
+  characteristics: Option<Characteristics>,
   card: Option<CardHandle>,
 
   #[serde_diff(opaque)]
@@ -33,10 +36,10 @@ pub struct Object<'a> {
 #[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug, Default)]
 #[derive(Serialize, Deserialize, SerdeDiff)]
 /// 109.3
-pub struct Characteristics<'a> {
+pub struct Characteristics {
   #[serde_diff(opaque)]
-  pub name: Cow<'a, str>,
-  pub mana_cost: ManaCost<'a>,
+  pub name: Cow<'static, str>,
+  pub mana_cost: ManaCost,
 
   pub color: ObjectColor,
   pub color_indicator: Option<usize>,
@@ -44,7 +47,7 @@ pub struct Characteristics<'a> {
   pub type_line: TypeLine,
 
   #[serde_diff(opaque)]
-  pub rules_text: Cow<'a, str>,
+  pub rules_text: Cow<'static, str>,
   // pub abilities: Vec<String>,
 
   // 208.
@@ -142,3 +145,5 @@ mod test {
     assert_eq!(std::mem::size_of::<Characteristics>(), expected_size);
   }
 }
+
+make_refcounted_pool!(Object, ObjectPool, ObjectHandle, u32);

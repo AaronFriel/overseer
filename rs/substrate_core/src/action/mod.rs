@@ -46,7 +46,7 @@ pub struct ChoicePrompt {
 #[derive(Serialize, Deserialize, SerdeDiff)]
 pub struct ChoicePromptTwo<T>
 where
-  for<'a> T: SerdeDiff + Serialize + Deserialize<'a>,
+  for<'t> T: SerdeDiff + Serialize + Deserialize<'t>,
 {
   pub player_handle: Option<PlayerHandle>,
   pub kind: PromptKind,

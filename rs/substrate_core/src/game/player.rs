@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 use serde::{Deserialize, Serialize};
 use serde_diff::SerdeDiff;
 
@@ -8,18 +6,17 @@ use crate::game::{Graveyard, Hand, Library, PlayerHandle, Zone};
 
 #[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug, Default)]
 #[derive(Serialize, Deserialize, SerdeDiff)]
-pub struct Player<'x> {
-  #[serde_diff(opaque)]
-  pub name: Cow<'x, str>,
+pub struct Player {
+  pub name: String,
   pub handle: Option<PlayerHandle>,
   pub controller: Option<PlayerHandle>,
 
   pub deck: Vec<CardHandle>,
   pub sideboard: Vec<CardHandle>,
 
-  pub library: Zone<'x, Library>,
-  pub hand: Zone<'x, Hand>,
-  pub graveyard: Zone<'x, Graveyard>,
+  pub library: Zone<Library>,
+  pub hand: Zone<Hand>,
+  pub graveyard: Zone<Graveyard>,
 
   pub life: i32, // 20
 
@@ -27,7 +24,7 @@ pub struct Player<'x> {
   pub has_lost_game: bool,
 }
 
-impl Player<'static> {
+impl Player {
   pub fn new(name: impl ToString, deck: Vec<CardHandle>, sideboard: Vec<CardHandle>) -> Self {
     Self {
       name: name.to_string().into(),

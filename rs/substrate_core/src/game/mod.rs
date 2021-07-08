@@ -8,8 +8,6 @@ mod player;
 mod target;
 mod zone;
 
-use std::borrow::Cow;
-
 use serde::{Deserialize, Serialize};
 use serde_diff::SerdeDiff;
 
@@ -33,9 +31,9 @@ pub enum StateAction {
 
 #[derive(Clone, PartialEq, Hash, Debug)]
 #[derive(Serialize, Deserialize/* , SerdeDiff */)]
-pub struct Game<'x> {
-  pub cards: Vec<Card<'x>>,
-  pub players: Vec<Cow<'x, Player<'x>>>,
+pub struct Game {
+  pub cards: Vec<Card>,
+  pub players: Vec<Player>,
   pub active_player: Option<PlayerHandle>,
 
   pub log: Vec<StateAction>,
@@ -44,12 +42,12 @@ pub struct Game<'x> {
   pub decisions: Vec<String>,
 }
 
-impl Game<'static> {
+impl Game {
   // TODO: Determine a better way to declare a game and set of valid cards?
-  pub fn new(cards: Vec<Card<'static>>, players: Vec<Player<'static>>) -> Self {
+  pub fn new(cards: Vec<Card>, players: Vec<Player>) -> Self {
     Self {
       cards,
-      players: players.into_iter().map(Cow::Owned).collect(),
+      players,
       active_player: Some(PlayerHandle::from_index(0)),
       log: Vec::new(),
       current_decision: 0,
@@ -58,7 +56,7 @@ impl Game<'static> {
   }
 }
 
-impl<'a> Game<'a> {
+impl Game {
   pub fn get_active_player(&self) -> Option<&Player> {
     todo!()
     // self.active_player.map(|active_player|
@@ -73,8 +71,8 @@ impl<'a> Game<'a> {
     &self.players[handle.to_index()]
   }
 
-  pub fn get_player_mut(&'a mut self, handle: PlayerHandle) -> &mut Player {
-    self.players[handle.to_index()].to_mut()
+  pub fn get_player_mut(&mut self, handle: PlayerHandle) -> &mut Player {
+    &mut self.players[handle.to_index()]
   }
 
   /// Set the game's active player.

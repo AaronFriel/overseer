@@ -7,18 +7,18 @@ use crate::game::{ManaCost, ObjectColor, TypeLine};
 
 #[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug, Default)]
 #[derive(Serialize, Deserialize, SerdeDiff)]
-pub struct Card<'a> {
+pub struct Card {
   #[serde_diff(opaque)]
-  pub name: Cow<'a, str>,
+  pub name: Cow<'static, str>,
   #[serde_diff(opaque)]
-  pub mana_cost: ManaCost<'a>,
+  pub mana_cost: ManaCost,
 
   pub color_indicator: ObjectColor,
 
   pub type_line: TypeLine,
 
   #[serde_diff(opaque)]
-  pub rules_text: Cow<'a, str>,
+  pub rules_text: Cow<'static, str>,
 
   pub power: usize,
   pub toughness: usize,
@@ -39,8 +39,8 @@ pub struct Card<'a> {
    * collector number */
 }
 
-impl Card<'static> {
-  pub const DEFAULT: Card<'static> = Card::const_default();
+impl Card {
+  pub const DEFAULT: Card = Card::const_default();
 
   pub const fn const_default() -> Self {
     Self {
@@ -61,20 +61,20 @@ impl Card<'static> {
 }
 
 lazy_static::lazy_static! {
-  static ref CARD_REGISTRY: RwLock<HashMap<String, Cow<'static, Card<'static>>>> = RwLock::new(HashMap::new());
+  static ref CARD_REGISTRY: RwLock<HashMap<String, Cow<'static, Card>>> = RwLock::new(HashMap::new());
 }
 
 #[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug, Default)]
 #[derive(SerdeDiff)]
-pub struct RegisteredCard<'a>(Cow<'a, Card<'static>>);
+pub struct RegisteredCard(Cow<'static, Card>);
 
-impl RegisteredCard<'static> {
+impl RegisteredCard {
   pub fn register(card: &'static Card) -> Self {
     register_card(&Cow::Borrowed(card)).unwrap()
   }
 }
 
-fn register_card(card: &Cow<'static, Card>) -> Result<RegisteredCard<'static>, ()> {
+fn register_card(card: &Cow<'static, Card>) -> Result<RegisteredCard, ()> {
   match &card {
     Cow::Owned(_) => Ok(RegisteredCard(card.clone())),
     Cow::Borrowed(x) => {
@@ -117,10 +117,10 @@ fn register_card(card: &Cow<'static, Card>) -> Result<RegisteredCard<'static>, (
 #[derive(Serialize, Deserialize)]
 pub(crate) enum RegisteredCardSerde {
   Registered(Cow<'static, str>),
-  Card(Card<'static>),
+  Card(Card),
 }
 
-impl Serialize for RegisteredCard<'static> {
+impl Serialize for RegisteredCard {
   fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
   where
     S: Serializer,
@@ -168,8 +168,8 @@ impl Serialize for RegisteredCard<'static> {
   }
 }
 
-impl<'de> Deserialize<'de> for RegisteredCard<'de> {
-  fn deserialize<D>(deserializer: D) -> Result<RegisteredCard<'de>, D::Error>
+impl<'de> Deserialize<'de> for RegisteredCard {
+  fn deserialize<D>(deserializer: D) -> Result<RegisteredCard, D::Error>
   where
     D: Deserializer<'de>,
   {

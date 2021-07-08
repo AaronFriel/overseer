@@ -31,7 +31,7 @@ macro_rules! make_refcounted_pool {
         #[serde(transparent)]
         pub struct $struct_name(RefCounted<NonZero>);
 
-        #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+        #[derive(Clone, Hash, Debug)]
         #[derive(Serialize, Deserialize, SerdeDiff)]
         pub struct $pool_name {
           next_index: NonZero,

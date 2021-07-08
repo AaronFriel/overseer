@@ -15,8 +15,6 @@ use serde_diff::SerdeDiff;
 use crate::game::{Color, ObjectColor, ObjectColored};
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-#[derive(SerdeDiff)]
-#[serde_diff(opaque)]
 pub enum ManaCostPip {
   X,
   Generic(u8),
@@ -269,7 +267,7 @@ impl<'a, T: IntoIterator<Item = &'a ManaCostPip>> ManaValued for T {
   }
 }
 
-impl<'a> ManaValued for &ManaCost<'a> {
+impl ManaValued for &ManaCost {
   fn mana_value(self, x: Option<usize>) -> usize {
     self.pips().mana_value(x)
   }
@@ -317,17 +315,15 @@ impl<'de> Deserialize<'de> for ManaCostPip {
 #[serde(try_from = "&str")]
 #[derive(SerdeDiff)]
 #[serde_diff(opaque)]
-pub struct ManaCost<'a>(Cow<'a, [ManaCostPip]>);
+pub struct ManaCost(Cow<'static, [ManaCostPip]>);
 
-impl ManaCost<'static> {
-  pub const NONE: ManaCost<'static> = ManaCost(Cow::Borrowed(&[]));
+impl ManaCost {
+  pub const NONE: ManaCost = ManaCost(Cow::Borrowed(&[]));
 
   pub const fn from_static(value: &'static [ManaCostPip]) -> Self {
     ManaCost(Cow::Borrowed(value))
   }
-}
 
-impl<'a> ManaCost<'a> {
   pub fn build() -> ManaCostBuilder {
     ManaCostBuilder::default()
   }
@@ -341,15 +337,15 @@ impl<'a> ManaCost<'a> {
   }
 }
 
-impl<'a> From<Vec<ManaCostPip>> for ManaCost<'static> {
+impl From<Vec<ManaCostPip>> for ManaCost {
   fn from(value: Vec<ManaCostPip>) -> Self {
     ManaCost(value.into())
   }
 }
 
-impl<'a> From<&'a [ManaCostPip]> for ManaCost<'a> {
-  fn from(value: &'a [ManaCostPip]) -> Self {
-    ManaCost(value.into())
+impl From<&[ManaCostPip]> for ManaCost {
+  fn from(value: &[ManaCostPip]) -> Self {
+    ManaCost(Cow::Owned(value.into()))
   }
 }
 
@@ -406,7 +402,7 @@ impl ManaCostBuilder {
     self
   }
 
-  pub fn seal(self) -> ManaCost<'static> {
+  pub fn seal(self) -> ManaCost {
     let mut pips = self.pips;
 
     if self.generic > 0 {
@@ -418,7 +414,7 @@ impl ManaCostBuilder {
   }
 }
 
-impl<'a> Display for ManaCost<'a> {
+impl Display for ManaCost {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     for pip in self.0.iter() {
       pip.fmt(f)?;
@@ -427,13 +423,13 @@ impl<'a> Display for ManaCost<'a> {
   }
 }
 
-impl<'a> Into<String> for ManaCost<'a> {
+impl Into<String> for ManaCost {
   fn into(self) -> String {
     format!("{}", self)
   }
 }
 
-impl TryFrom<&str> for ManaCost<'static> {
+impl TryFrom<&str> for ManaCost {
   type Error = String;
 
   fn try_from(value: &str) -> Result<Self, Self::Error> {
@@ -467,7 +463,7 @@ impl ObjectColored for &ManaCostPip {
   }
 }
 
-impl<'a> ObjectColored for &ManaCost<'a> {
+impl ObjectColored for &ManaCost {
   fn get_object_color(self) -> ObjectColor {
     ObjectColor::from_iter(self.pips().iter().map(|x| x.get_object_color()))
   }
