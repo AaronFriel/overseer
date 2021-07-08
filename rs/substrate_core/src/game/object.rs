@@ -3,9 +3,9 @@ use std::borrow::Cow;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_diff::SerdeDiff;
 
-use crate::game::{ManaCost, ObjectColor, PlayerHandle, TypeLine, ZoneKind};
+use crate::game::{ManaCost, ObjectColor, PlayerHandle, TypeLine};
 
-#[derive(Copy, Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
+#[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
 #[derive(Serialize, Deserialize, SerdeDiff)]
 pub enum ObjectKind {
   Ability,
@@ -19,10 +19,10 @@ pub enum ObjectKind {
 
 #[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
 #[derive(Serialize, Deserialize, SerdeDiff)]
-pub struct Object {
-  zone: ZoneKind,
-  object_kind: ObjectKind,
-  characteristics: Option<Characteristics>,
+pub struct Object<'a> {
+  kind: ObjectKind,
+  characteristics: Option<Characteristics<'a>>,
+  card: Option<CardHandle>,
 
   #[serde_diff(opaque)]
   status: Status,
@@ -33,17 +33,18 @@ pub struct Object {
 #[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug, Default)]
 #[derive(Serialize, Deserialize, SerdeDiff)]
 /// 109.3
-pub struct Characteristics {
+pub struct Characteristics<'a> {
   #[serde_diff(opaque)]
-  pub name: Cow<'static, str>,
-  pub mana_cost: ManaCost,
+  pub name: Cow<'a, str>,
+  pub mana_cost: ManaCost<'a>,
+
   pub color: ObjectColor,
   pub color_indicator: Option<usize>,
 
   pub type_line: TypeLine,
 
   #[serde_diff(opaque)]
-  pub rules_text: Cow<'static, str>,
+  pub rules_text: Cow<'a, str>,
   // pub abilities: Vec<String>,
 
   // 208.
@@ -63,6 +64,8 @@ pub struct Characteristics {
 }
 
 use bitflags::bitflags;
+
+use super::CardHandle;
 
 bitflags! {
   pub struct Status: u8 {
@@ -123,7 +126,7 @@ mod test {
 
   #[test]
   fn size_of_object() {
-    let expected_size = 214;
+    let expected_size = 264;
     #[cfg(feature = "vanguard")]
     let expected_size = expected_size + 2;
 
@@ -132,7 +135,7 @@ mod test {
 
   #[test]
   fn size_of_characteristics() {
-    let expected_size = 174;
+    let expected_size = 176;
     #[cfg(feature = "vanguard")]
     let expected_size = expected_size + 2;
 

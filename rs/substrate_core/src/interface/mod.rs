@@ -1,3 +1,4 @@
 mod choice;
+mod viewable;
 
-pub use self::choice::*;
+pub use self::{choice::*, viewable::*};

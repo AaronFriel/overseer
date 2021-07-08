@@ -269,7 +269,7 @@ impl<'a, T: IntoIterator<Item = &'a ManaCostPip>> ManaValued for T {
   }
 }
 
-impl ManaValued for &ManaCost {
+impl<'a> ManaValued for &ManaCost<'a> {
   fn mana_value(self, x: Option<usize>) -> usize {
     self.pips().mana_value(x)
   }
@@ -312,13 +312,22 @@ impl<'de> Deserialize<'de> for ManaCostPip {
 }
 
 #[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug, Default)]
+#[derive(Serialize, Deserialize)]
+#[serde(into = "String")]
+#[serde(try_from = "&str")]
 #[derive(SerdeDiff)]
 #[serde_diff(opaque)]
-pub struct ManaCost(Cow<'static, [ManaCostPip]>);
+pub struct ManaCost<'a>(Cow<'a, [ManaCostPip]>);
 
-impl ManaCost {
-  pub const NONE: ManaCost = ManaCost(Cow::Borrowed(&[]));
+impl ManaCost<'static> {
+  pub const NONE: ManaCost<'static> = ManaCost(Cow::Borrowed(&[]));
 
+  pub const fn from_static(value: &'static [ManaCostPip]) -> Self {
+    ManaCost(Cow::Borrowed(value))
+  }
+}
+
+impl<'a> ManaCost<'a> {
   pub fn build() -> ManaCostBuilder {
     ManaCostBuilder::default()
   }
@@ -327,23 +336,19 @@ impl ManaCost {
     ManaCost(Cow::Owned(value))
   }
 
-  pub const fn from_static(value: &'static [ManaCostPip]) -> Self {
-    ManaCost(Cow::Borrowed(value))
-  }
-
   pub fn pips(&self) -> &[ManaCostPip] {
     self.0.borrow()
   }
 }
 
-impl From<Vec<ManaCostPip>> for ManaCost {
+impl<'a> From<Vec<ManaCostPip>> for ManaCost<'static> {
   fn from(value: Vec<ManaCostPip>) -> Self {
     ManaCost(value.into())
   }
 }
 
-impl From<&'static [ManaCostPip]> for ManaCost {
-  fn from(value: &'static [ManaCostPip]) -> Self {
+impl<'a> From<&'a [ManaCostPip]> for ManaCost<'a> {
+  fn from(value: &'a [ManaCostPip]) -> Self {
     ManaCost(value.into())
   }
 }
@@ -401,7 +406,7 @@ impl ManaCostBuilder {
     self
   }
 
-  pub fn seal(self) -> ManaCost {
+  pub fn seal(self) -> ManaCost<'static> {
     let mut pips = self.pips;
 
     if self.generic > 0 {
@@ -413,7 +418,7 @@ impl ManaCostBuilder {
   }
 }
 
-impl Display for ManaCost {
+impl<'a> Display for ManaCost<'a> {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     for pip in self.0.iter() {
       pip.fmt(f)?;
@@ -422,7 +427,13 @@ impl Display for ManaCost {
   }
 }
 
-impl TryFrom<&str> for ManaCost {
+impl<'a> Into<String> for ManaCost<'a> {
+  fn into(self) -> String {
+    format!("{}", self)
+  }
+}
+
+impl TryFrom<&str> for ManaCost<'static> {
   type Error = String;
 
   fn try_from(value: &str) -> Result<Self, Self::Error> {
@@ -441,42 +452,6 @@ impl TryFrom<&str> for ManaCost {
   }
 }
 
-impl Serialize for ManaCost {
-  fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-  where
-    S: Serializer,
-  {
-    serializer.collect_str(self)
-  }
-}
-
-struct ManaCostVisitor;
-
-impl<'de> Visitor<'de> for ManaCostVisitor {
-  type Value = ManaCost;
-
-  fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-    formatter
-      .write_str("a valid mana cost symbol, such as {C}, {3}, {W}, {2/U}, {P/R}, {S}, or {X}")
-  }
-
-  fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
-  where
-    E: de::Error,
-  {
-    ManaCost::try_from(v).map_err(de::Error::custom)
-  }
-}
-
-impl<'de> Deserialize<'de> for ManaCost {
-  fn deserialize<D>(deserializer: D) -> Result<ManaCost, D::Error>
-  where
-    D: Deserializer<'de>,
-  {
-    deserializer.deserialize_str(ManaCostVisitor)
-  }
-}
-
 impl ObjectColored for &ManaCostPip {
   fn get_object_color(self) -> ObjectColor {
     match self {
@@ -492,7 +467,7 @@ impl ObjectColored for &ManaCostPip {
   }
 }
 
-impl ObjectColored for &ManaCost {
+impl<'a> ObjectColored for &ManaCost<'a> {
   fn get_object_color(self) -> ObjectColor {
     ObjectColor::from_iter(self.pips().iter().map(|x| x.get_object_color()))
   }
@@ -506,7 +481,7 @@ mod test {
   fn assert_sizeof() {
     assert_eq!(
       std::mem::size_of::<ManaCost>(),
-      std::mem::size_of::<usize>() * 2
+      std::mem::size_of::<usize>() * 4
     );
     assert_eq!(std::mem::size_of::<ManaCostPip>(), 2);
     assert_eq!(std::mem::size_of::<[ManaCostPip; 10]>(), 20);

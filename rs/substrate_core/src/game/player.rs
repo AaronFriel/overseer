@@ -1,19 +1,25 @@
+use std::borrow::Cow;
+
 use serde::{Deserialize, Serialize};
 use serde_diff::SerdeDiff;
 
-use crate::game::{Card, Zone, ZoneKind};
+use super::CardHandle;
+use crate::game::{Graveyard, Hand, Library, PlayerHandle, Zone};
 
 #[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug, Default)]
 #[derive(Serialize, Deserialize, SerdeDiff)]
-pub struct Player {
-  pub name: String,
+pub struct Player<'x> {
+  #[serde_diff(opaque)]
+  pub name: Cow<'x, str>,
+  pub handle: Option<PlayerHandle>,
+  pub controller: Option<PlayerHandle>,
 
-  pub deck: Vec<Card>,
-  pub sideboard: Vec<Card>,
+  pub deck: Vec<CardHandle>,
+  pub sideboard: Vec<CardHandle>,
 
-  pub library: Zone,
-  pub hand: Zone,
-  pub graveyard: Zone,
+  pub library: Zone<'x, Library>,
+  pub hand: Zone<'x, Hand>,
+  pub graveyard: Zone<'x, Graveyard>,
 
   pub life: i32, // 20
 
@@ -21,16 +27,17 @@ pub struct Player {
   pub has_lost_game: bool,
 }
 
-impl Player {
-  pub fn new<T>(name: T, deck: Vec<Card>, sideboard: Vec<Card>) -> Self
-  where
-    T: Into<String>,
-  {
+impl Player<'static> {
+  pub fn new(name: impl ToString, deck: Vec<CardHandle>, sideboard: Vec<CardHandle>) -> Self {
     Self {
-      name: name.into(),
-      library: ZoneKind::Library.new_zone(),
-      graveyard: ZoneKind::Graveyard.new_zone(),
-      hand: ZoneKind::Graveyard.new_zone(),
+      name: name.to_string().into(),
+
+      handle: None,
+      controller: None,
+
+      library: Zone::new(),
+      graveyard: Zone::new(),
+      hand: Zone::new(),
 
       life: 20,
       deck,
@@ -42,12 +49,48 @@ impl Player {
   }
 }
 
-/*
+// impl<'a> Visible for Player<'a> {
+//   type Context = PlayerHandle;
 
-// Extra fields
-// pub final Map<Card, Integer> assignedDamage, // Maps.newHashMap();
-// pub final Map<Card, Integer> assignedCombatDamage, // Maps.newHashMap();
-// pub lastDrawnCard, // null;
-// pub String namedCard, // "";
-// pub String namedCard2, // "";
-*/
+//   fn is_visible(&self, context: &Self::Context) -> bool {
+//     if self.handle.eq(other) == context {
+//       return true;
+//     }
+
+//     if self.controller == context {
+//       return true;
+//     };
+
+//     false
+//   }
+
+//   fn to_visible(&self, context: &Self::Context) -> Self {
+//     Player {
+//       name: (&*self.name).into(),
+//       handle: self.handle,
+//       controller: self.handle,
+
+//       deck: vec![],
+//       sideboard: vec![],
+//       library: self.library.as_hidden(),
+//       hand: self.hand.as_hidden(),
+//       graveyard: self.graveyard.clone(),
+//       ..*self
+//     }
+//   }
+
+//   fn to_hidden(&self, context: &Self::Context) -> Self {
+//     Player {
+//       name: (&*self.name).into(),
+//       handle: self.handle,
+//       controller: self.handle,
+
+//       deck: vec![],
+//       sideboard: vec![],
+//       library: self.library.view_as(),
+//       hand: self.hand.cow_copy(),
+//       graveyard: self.graveyard.cow_copy(),
+//       ..*self
+//     }
+//   }
+// }

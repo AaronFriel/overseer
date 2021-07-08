@@ -13,8 +13,12 @@ vanguard = []
 bitflags = "1.2.1"
 dyn-clonable = "0.9.0"
 dyn_partial_eq = "0.1.2"
+im = { version = "15.0.0", features = ["serde"] }
+lazy_static = "1.4.0"
+nonzero_ext = "0.2.0"
+paste = "1.0.5"
 serde = { version = "1.0.125", features = ["derive"] }
-serde-diff = "0.4.1"
+serde-diff = { git = "https://github.com/AaronFriel/serde-diff", features = ["im"], rev = "a93563f7e4f05b97cbea894d16f696d87cff9af0" }
 strum = { version = "0.21.0", features = ["derive"] }
 
 [dependencies.typetag]

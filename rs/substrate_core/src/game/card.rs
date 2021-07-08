@@ -1,22 +1,24 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, collections::HashMap, sync::RwLock};
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_diff::SerdeDiff;
 
 use crate::game::{ManaCost, ObjectColor, TypeLine};
 
 #[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug, Default)]
 #[derive(Serialize, Deserialize, SerdeDiff)]
-#[serde_diff(opaque)]
-pub struct Card {
-  pub name: Cow<'static, str>,
-  pub mana_cost: ManaCost,
+pub struct Card<'a> {
+  #[serde_diff(opaque)]
+  pub name: Cow<'a, str>,
+  #[serde_diff(opaque)]
+  pub mana_cost: ManaCost<'a>,
 
   pub color_indicator: ObjectColor,
 
   pub type_line: TypeLine,
 
-  pub rules_text: Cow<'static, str>,
+  #[serde_diff(opaque)]
+  pub rules_text: Cow<'a, str>,
 
   pub power: usize,
   pub toughness: usize,
@@ -37,8 +39,8 @@ pub struct Card {
    * collector number */
 }
 
-impl Card {
-  pub const DEFAULT: Card = Card::const_default();
+impl Card<'static> {
+  pub const DEFAULT: Card<'static> = Card::const_default();
 
   pub const fn const_default() -> Self {
     Self {
@@ -58,12 +60,144 @@ impl Card {
   }
 }
 
+lazy_static::lazy_static! {
+  static ref CARD_REGISTRY: RwLock<HashMap<String, Cow<'static, Card<'static>>>> = RwLock::new(HashMap::new());
+}
+
+#[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug, Default)]
+#[derive(SerdeDiff)]
+pub struct RegisteredCard<'a>(Cow<'a, Card<'static>>);
+
+impl RegisteredCard<'static> {
+  pub fn register(card: &'static Card) -> Self {
+    register_card(&Cow::Borrowed(card)).unwrap()
+  }
+}
+
+fn register_card(card: &Cow<'static, Card>) -> Result<RegisteredCard<'static>, ()> {
+  match &card {
+    Cow::Owned(_) => Ok(RegisteredCard(card.clone())),
+    Cow::Borrowed(x) => {
+      // We've got a static reference to a card, safe to use registry
+      {
+        // Try a read first
+        let registry = CARD_REGISTRY
+          .read()
+          .map_err(|_| panic!("Card registry lock poisoned"))?;
+
+        if let Some(registered_card) = registry.get(&*card.name) {
+          if registered_card != card {
+            panic!("Registry poisoned with invalid card data, card inserted twice",);
+          } else {
+            return Ok(RegisteredCard(card.clone()));
+          }
+        }
+      }
+      {
+        {
+          let mut registry = CARD_REGISTRY
+            .write()
+            .map_err(|_| panic!("Card registry lock poisoned"))?;
+
+          let registered_card = registry
+            .entry(card.name.to_string())
+            .or_insert(Cow::Borrowed(*x));
+          if registered_card != card {
+            panic!("Registry poisoned with invalid card data, card inserted twice");
+          } else {
+            return Ok(RegisteredCard(registered_card.clone()));
+          }
+        }
+      }
+    }
+  }
+}
+
+#[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
+#[derive(Serialize, Deserialize)]
+pub(crate) enum RegisteredCardSerde {
+  Registered(Cow<'static, str>),
+  Card(Card<'static>),
+}
+
+impl Serialize for RegisteredCard<'static> {
+  fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+  where
+    S: Serializer,
+  {
+    match &self.0 {
+      Cow::Owned(x) => RegisteredCardSerde::Card(x.clone()).serialize(serializer),
+      Cow::Borrowed(x) => {
+        // We've got a static reference to a card, safe to use registry
+        {
+          // Try a read first
+          let registry = CARD_REGISTRY
+            .read()
+            .map_err(|_| serde::ser::Error::custom("Card registry lock poisoned"))?;
+
+          if let Some(registered_card) = registry.get(&*self.0.name) {
+            if registered_card != &self.0 {
+              return Err(serde::ser::Error::custom(
+                "Registry poisoned with invalid card data, card inserted twice",
+              ));
+            } else {
+              return RegisteredCardSerde::Registered(self.0.name.clone()).serialize(serializer);
+            }
+          }
+        }
+        {
+          {
+            let mut registry = CARD_REGISTRY
+              .write()
+              .map_err(|_| serde::ser::Error::custom("Card registry lock poisoned"))?;
+
+            let registered_card = registry
+              .entry(self.0.name.to_string())
+              .or_insert(Cow::Borrowed(*x));
+            if registered_card != &self.0 {
+              return Err(serde::ser::Error::custom(
+                "Registry poisoned with invalid card data, card inserted twice",
+              ));
+            } else {
+              return RegisteredCardSerde::Registered(self.0.name.clone()).serialize(serializer);
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+impl<'de> Deserialize<'de> for RegisteredCard<'de> {
+  fn deserialize<D>(deserializer: D) -> Result<RegisteredCard<'de>, D::Error>
+  where
+    D: Deserializer<'de>,
+  {
+    match RegisteredCardSerde::deserialize(deserializer)? {
+      RegisteredCardSerde::Registered(c) => {
+        use serde::de::Error;
+        let registry = CARD_REGISTRY
+          .read()
+          .map_err(|_| Error::custom("Card registry lock poisoned"))?;
+
+        if let Some(registered_card) = registry.get(&*c) {
+          Ok(RegisteredCard(registered_card.clone()))
+        } else {
+          Err(Error::custom("Card not in registry"))
+        }
+      }
+      RegisteredCardSerde::Card(card) => Ok(RegisteredCard(Cow::Owned(card))),
+    }
+  }
+}
+
 #[derive(Copy, Clone, Eq, PartialEq, PartialOrd, Hash, Debug, Default)]
 #[derive(Serialize, Deserialize, SerdeDiff)]
-#[serde(transparent)]
-pub struct CardHandle(usize);
+pub struct CardHandle {
+  index: Option<usize>,
+}
 
-pub type CardList = Vec<Card>;
+pub type CardList = Vec<CardHandle>;
 
 #[cfg(test)]
 mod test {
@@ -71,7 +205,7 @@ mod test {
 
   #[test]
   fn assert_sizeof() {
-    let expected_size = 158;
+    let expected_size = 160;
     #[cfg(feature = "vanguard")]
     let expected_size = expected_size + 2;
 
