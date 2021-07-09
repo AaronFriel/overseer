@@ -2,13 +2,13 @@ use std::{borrow::Cow, convert::TryFrom};
 
 use insta::{assert_display_snapshot, assert_snapshot, assert_yaml_snapshot};
 use overseer_substrate_core::game::{
-  Card, CardSubtype, CreatureType, CustomSubtype, Game, ManaCost, ManaCostPip, ObjectColor, Player,
-  PredefinedSubtype, RegisteredCard, TypeLine, Zone,
+  Battlefield, Card, CardSubtype, CreatureType, CustomSubtype, Game, ManaCost, ManaCostPip,
+  ObjectColor, Player, PredefinedSubtype, RegisteredCard, TypeLine, Zone,
 };
 
 #[test]
 fn zone_repr() {
-  assert_yaml_snapshot!(Zone::new_battlefield(), @r###"
+  assert_yaml_snapshot!(Zone::<Battlefield>::new(), @r###"
   ---
   cards: []
   count: 0

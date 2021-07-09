@@ -15,7 +15,7 @@ macro_rules! make_refcounted_pool {
         use serde_diff::SerdeDiff;
 
         use super::$object_name as Obj;
-        use $crate::util::{RefCounted, WeakCounted};
+        use $crate::pool::{RefCounted, WeakCounted};
 
         #[cfg(test)]
         use std::{collections::hash_map::DefaultHasher, hash::BuildHasherDefault};
@@ -30,6 +30,16 @@ macro_rules! make_refcounted_pool {
         #[derive(Serialize, Deserialize, SerdeDiff)]
         #[serde(transparent)]
         pub struct $struct_name(RefCounted<NonZero>);
+
+        impl $struct_name {
+          #[inline]
+          pub(crate) fn weak_clone(&self) -> Self {
+            $struct_name(RefCounted{
+              value: self.0.value,
+              rc: Rc::default(),
+            })
+          }
+        }
 
         #[derive(Clone, Hash, Debug)]
         #[derive(Serialize, Deserialize, SerdeDiff)]
@@ -87,6 +97,10 @@ macro_rules! make_refcounted_pool {
             self.map.get_mut(&handle.0.value).map(|f| &mut f.value)
           }
 
+          pub fn remove(&mut self, handle: &$struct_name) {
+            self.map.remove(&handle.0.value);
+          }
+
           pub fn collect_garbage(&mut self) {
             let removable_keys: Vec<NonZero> = self.map.iter().filter_map(|(k, v)| {
               if Weak::strong_count(&v.rc) == 0 { Some(*k) } else { None }
@@ -99,7 +113,19 @@ macro_rules! make_refcounted_pool {
             });
           }
 
-          pub fn into_hashmap<'_a>(&'_a self) -> StdHashMap<Zeroable, &'_a Obj> {
+          pub fn iter(&self) -> impl Iterator<Item = (Zeroable, &Obj)> {
+            self.map.iter().map(|(k, v)| {
+              (k.get(), &v.value)
+            })
+          }
+
+          pub fn iter_weak(&self) -> impl Iterator<Item = ($struct_name, &Obj)> {
+            self.map.iter().map(|(k, v)| {
+              ($struct_name(RefCounted { value: *k, rc: Rc::default() }), &v.value)
+            })
+          }
+
+          pub fn into_hashmap(&self) -> StdHashMap<Zeroable, &Obj> {
             self.map.iter().map(|(k, v)| {
               (k.get(), &v.value)
             }).collect()

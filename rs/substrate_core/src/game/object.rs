@@ -1,11 +1,11 @@
 use std::borrow::Cow;
 
+use overseer_util::make_refcounted_pool;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_diff::SerdeDiff;
 
 use crate::{
   game::{ManaCost, ObjectColor, PlayerHandle, TypeLine},
-  make_refcounted_pool,
 };
 
 #[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]

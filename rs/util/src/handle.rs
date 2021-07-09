@@ -19,7 +19,7 @@ macro_rules! make_handle {
         use serde::{Deserialize, Serialize};
         use serde_diff::SerdeDiff;
         use nonzero_ext::NonZeroAble;
-        use $crate::util::Handle;
+        use $crate::handle::Handle;
 
         #[derive(Copy, Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
         #[derive(Serialize, Deserialize, SerdeDiff)]

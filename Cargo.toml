@@ -4,6 +4,7 @@ members = [
   "rs/magistrate",
   "rs/substrate_macros",
   "rs/substrate_core",
+  "rs/util",
   "rs/substrate",
   # "rs/cli",
   # "rs/sandbox",

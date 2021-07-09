@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
 use insta::assert_yaml_snapshot;
-use overseer_substrate_core::make_refcounted_pool;
+use overseer_util::make_refcounted_pool;
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 #[derive(serde::Serialize, serde::Deserialize, serde_diff::SerdeDiff)]

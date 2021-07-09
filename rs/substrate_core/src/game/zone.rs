@@ -1,19 +1,20 @@
-use std::{marker::PhantomData};
+use std::marker::PhantomData;
 
 use serde::{Deserialize, Serialize};
 use serde_diff::SerdeDiff;
 
-use crate::{game::ObjectHandle};
+use crate::game::ObjectHandle;
 
 #[derive(Copy, Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
 #[derive(Serialize, Deserialize, SerdeDiff)]
-pub enum ZoneKind {
+pub enum Zones {
   Hand,
   Library,
   Battlefield,
   Graveyard,
   Stack,
   Exile,
+  Command,
 }
 
 #[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug, Default)]
@@ -28,101 +29,61 @@ pub struct Graveyard;
 pub struct Stack;
 #[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug, Default)]
 pub struct Exile;
-
-pub type ZoneHand = Zone<Hand>;
-pub type ZoneLibrary = Zone<Library>;
-pub type ZoneBattlefield = Zone<Battlefield>;
-pub type ZoneGraveyard = Zone<Graveyard>;
-pub type ZoneStack = Zone<Stack>;
-pub type ZoneExile = Zone<Exile>;
+#[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug, Default)]
+pub struct Command;
 
 #[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug, Default)]
 #[derive(Serialize, Deserialize, SerdeDiff)]
 pub struct Zone<K> {
   pub cards: Vec<ObjectHandle>,
-  pub count: usize,
   #[serde(skip)]
   #[serde_diff(skip)]
   kind: PhantomData<K>,
 }
 
-pub trait ZoneKinded {
-  const KIND: ZoneKind;
+pub trait ZoneKinded:
+  Clone + Eq + PartialEq + PartialOrd + std::hash::Hash + std::fmt::Debug + Default
+{
+  const KIND: Zones;
 }
 
 impl ZoneKinded for Hand {
-  const KIND: ZoneKind = ZoneKind::Hand;
+  const KIND: Zones = Zones::Hand;
 }
 impl ZoneKinded for Library {
-  const KIND: ZoneKind = ZoneKind::Library;
+  const KIND: Zones = Zones::Library;
 }
 impl ZoneKinded for Battlefield {
-  const KIND: ZoneKind = ZoneKind::Battlefield;
+  const KIND: Zones = Zones::Battlefield;
 }
 impl ZoneKinded for Graveyard {
-  const KIND: ZoneKind = ZoneKind::Graveyard;
+  const KIND: Zones = Zones::Graveyard;
 }
 impl ZoneKinded for Stack {
-  const KIND: ZoneKind = ZoneKind::Stack;
+  const KIND: Zones = Zones::Stack;
 }
 impl ZoneKinded for Exile {
-  const KIND: ZoneKind = ZoneKind::Exile;
+  const KIND: Zones = Zones::Exile;
 }
-
-impl Zone<Hand> {
-  pub fn new_hand() -> Self {
-    Self::new()
-  }
-}
-impl Zone<Library> {
-  pub fn new_library() -> Self {
-    Self::new()
-  }
-}
-impl Zone<Battlefield> {
-  pub fn new_battlefield() -> Self {
-    Self::new()
-  }
-}
-impl Zone<Graveyard> {
-  pub fn new_graveyard() -> Self {
-    Self::new()
-  }
-}
-impl Zone<Stack> {
-  pub fn new_stack() -> Self {
-    Self::new()
-  }
-}
-impl Zone<Exile> {
-  pub fn new_exile() -> Self {
-    Self::new()
-  }
+impl ZoneKinded for Command {
+  const KIND: Zones = Zones::Command;
 }
 
 impl<K> Zone<K> {
   pub fn new() -> Self {
     Self {
       cards: vec![],
-      count: 0,
       kind: PhantomData,
     }
   }
+
+  pub fn iter(&self) -> impl Iterator<Item = &ObjectHandle> {
+    self.cards.iter()
+  }
 }
 
-// enum ZoneViewAs {
-//   Owner,
-//   Other,
-// }
-
-// impl<'a, K> Viewable for Zone<'a, K> {
-//   type Context = (ZoneViewAs, PlayerHandle);
-
-//   fn view_as(&self, context: &Self::Context) -> Self {
-//     Zone {
-//         cards: self.cards,
-//         count: (),
-//         kind: (),
-//     }
-//   }
-// }
+pub enum ViewedAs {
+  Player,
+  ControllerOfPlayer,
+  Other,
+}

@@ -406,6 +406,7 @@ dependencies = [
  "insta",
  "lazy_static",
  "nonzero_ext",
+ "overseer_util",
  "paste",
  "serde",
  "serde-diff",
@@ -424,6 +425,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "overseer_util"
+version = "0.1.0"
+dependencies = [
+ "nonzero_ext",
+ "serde",
+ "serde-diff",
 ]
 
 [[package]]

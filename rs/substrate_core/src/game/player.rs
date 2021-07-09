@@ -1,8 +1,9 @@
 use serde::{Deserialize, Serialize};
 use serde_diff::SerdeDiff;
 
-use super::CardHandle;
-use crate::game::{Graveyard, Hand, Library, PlayerHandle, Zone};
+use crate::{
+  game::{ObjectHandle, PlayerHandle, CardHandle, Zone, Library, Hand, Graveyard},
+};
 
 #[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug, Default)]
 #[derive(Serialize, Deserialize, SerdeDiff)]
@@ -17,8 +18,9 @@ pub struct Player {
   pub library: Zone<Library>,
   pub hand: Zone<Hand>,
   pub graveyard: Zone<Graveyard>,
+  pub revealed: Vec<ObjectHandle>,
 
-  pub life: i32, // 20
+  pub life: u32, // 20
 
   pub has_left_game: bool,
   pub has_lost_game: bool,
@@ -35,6 +37,7 @@ impl Player {
       library: Zone::new(),
       graveyard: Zone::new(),
       hand: Zone::new(),
+      revealed: Vec::new(),
 
       life: 20,
       deck,
@@ -45,49 +48,3 @@ impl Player {
     }
   }
 }
-
-// impl<'a> Visible for Player<'a> {
-//   type Context = PlayerHandle;
-
-//   fn is_visible(&self, context: &Self::Context) -> bool {
-//     if self.handle.eq(other) == context {
-//       return true;
-//     }
-
-//     if self.controller == context {
-//       return true;
-//     };
-
-//     false
-//   }
-
-//   fn to_visible(&self, context: &Self::Context) -> Self {
-//     Player {
-//       name: (&*self.name).into(),
-//       handle: self.handle,
-//       controller: self.handle,
-
-//       deck: vec![],
-//       sideboard: vec![],
-//       library: self.library.as_hidden(),
-//       hand: self.hand.as_hidden(),
-//       graveyard: self.graveyard.clone(),
-//       ..*self
-//     }
-//   }
-
-//   fn to_hidden(&self, context: &Self::Context) -> Self {
-//     Player {
-//       name: (&*self.name).into(),
-//       handle: self.handle,
-//       controller: self.handle,
-
-//       deck: vec![],
-//       sideboard: vec![],
-//       library: self.library.view_as(),
-//       hand: self.hand.cow_copy(),
-//       graveyard: self.graveyard.cow_copy(),
-//       ..*self
-//     }
-//   }
-// }
