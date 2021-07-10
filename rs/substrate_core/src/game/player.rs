@@ -1,9 +1,7 @@
 use serde::{Deserialize, Serialize};
 use serde_diff::SerdeDiff;
 
-use crate::{
-  game::{ObjectHandle, PlayerHandle, CardHandle, Zone, Library, Hand, Graveyard},
-};
+use crate::game::{Graveyard, Hand, Library, ObjectHandle, PlayerHandle, RegisteredCard, Zone};
 
 #[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug, Default)]
 #[derive(Serialize, Deserialize, SerdeDiff)]
@@ -12,8 +10,8 @@ pub struct Player {
   pub handle: Option<PlayerHandle>,
   pub controller: Option<PlayerHandle>,
 
-  pub deck: Vec<CardHandle>,
-  pub sideboard: Vec<CardHandle>,
+  pub deck: Vec<RegisteredCard>,
+  pub sideboard: Vec<RegisteredCard>,
 
   pub library: Zone<Library>,
   pub hand: Zone<Hand>,
@@ -27,7 +25,11 @@ pub struct Player {
 }
 
 impl Player {
-  pub fn new(name: impl ToString, deck: Vec<CardHandle>, sideboard: Vec<CardHandle>) -> Self {
+  pub fn new(
+    name: impl ToString,
+    deck: Vec<RegisteredCard>,
+    sideboard: Vec<RegisteredCard>,
+  ) -> Self {
     Self {
       name: name.to_string().into(),
 

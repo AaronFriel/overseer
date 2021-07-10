@@ -3,7 +3,7 @@ use std::{borrow::Cow, collections::HashMap, sync::RwLock};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_diff::SerdeDiff;
 
-use crate::game::{ManaCost, ObjectColor, TypeLine};
+use crate::game::{ManaCost, ObjectColor, TypeLine, ObjectHandle};
 
 #[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug, Default)]
 #[derive(Serialize, Deserialize, SerdeDiff)]
@@ -191,11 +191,7 @@ impl<'de> Deserialize<'de> for RegisteredCard {
   }
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, PartialOrd, Hash, Debug, Default)]
-#[derive(Serialize, Deserialize, SerdeDiff)]
-pub struct CardHandle {
-  index: Option<usize>,
-}
+pub type CardHandle = ObjectHandle;
 
 pub type CardList = Vec<CardHandle>;
 

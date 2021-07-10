@@ -621,7 +621,7 @@ dependencies = [
 [[package]]
 name = "serde-diff"
 version = "0.4.1"
-source = "git+https://github.com/AaronFriel/serde-diff?rev=a93563f7e4f05b97cbea894d16f696d87cff9af0#a93563f7e4f05b97cbea894d16f696d87cff9af0"
+source = "git+https://github.com/AaronFriel/serde-diff?rev=cebff2dbba7a4f8d1d450d3a55062c17b2b8d1cd#cebff2dbba7a4f8d1d450d3a55062c17b2b8d1cd"
 dependencies = [
  "im",
  "serde",
@@ -632,7 +632,7 @@ dependencies = [
 [[package]]
 name = "serde-diff-derive"
 version = "0.4.0"
-source = "git+https://github.com/AaronFriel/serde-diff?rev=a93563f7e4f05b97cbea894d16f696d87cff9af0#a93563f7e4f05b97cbea894d16f696d87cff9af0"
+source = "git+https://github.com/AaronFriel/serde-diff?rev=cebff2dbba7a4f8d1d450d3a55062c17b2b8d1cd#cebff2dbba7a4f8d1d450d3a55062c17b2b8d1cd"
 dependencies = [
  "darling",
  "proc-macro2",

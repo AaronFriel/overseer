@@ -3,9 +3,11 @@ use std::borrow::Cow;
 use overseer_util::make_refcounted_pool;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_diff::SerdeDiff;
+use bitflags::bitflags;
+
 
 use crate::{
-  game::{ManaCost, ObjectColor, PlayerHandle, TypeLine},
+  game::{ManaCost, ObjectColor, PlayerHandle, TypeLine, RegisteredCard},
 };
 
 #[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
@@ -23,14 +25,14 @@ pub enum ObjectKind {
 #[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
 #[derive(Serialize, Deserialize, SerdeDiff)]
 pub struct Object {
-  kind: ObjectKind,
-  characteristics: Option<Characteristics>,
-  card: Option<CardHandle>,
+  pub kind: ObjectKind,
+  pub characteristics: Option<Characteristics>,
+  pub card: Option<RegisteredCard>,
 
   #[serde_diff(opaque)]
-  status: Status,
-  owner: Option<PlayerHandle>,
-  controller: Option<PlayerHandle>,
+  pub status: Status,
+  pub owner: Option<PlayerHandle>,
+  pub controller: Option<PlayerHandle>,
 }
 
 #[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug, Default)]
@@ -66,10 +68,6 @@ pub struct Characteristics {
   pub life_modifier: i8,
 }
 
-use bitflags::bitflags;
-
-use super::CardHandle;
-
 bitflags! {
   pub struct Status: u8 {
     const TAPPED = 1<<0;
@@ -77,6 +75,12 @@ bitflags! {
     const FACED_DOWN = 1<<2;
     const PHASED_OUT = 1<<3;
   }
+}
+
+impl Default for Status {
+    fn default() -> Self {
+        Status::empty()
+    }
 }
 
 impl Serialize for Status {
@@ -128,15 +132,6 @@ mod test {
   use super::*;
 
   #[test]
-  fn size_of_object() {
-    let expected_size = 264;
-    #[cfg(feature = "vanguard")]
-    let expected_size = expected_size + 2;
-
-    assert_eq!(std::mem::size_of::<Object>(), expected_size);
-  }
-
-  #[test]
   fn size_of_characteristics() {
     let expected_size = 176;
     #[cfg(feature = "vanguard")]
@@ -146,4 +141,4 @@ mod test {
   }
 }
 
-make_refcounted_pool!(Object, ObjectPool, ObjectHandle, u32);
+make_refcounted_pool!(Object, ObjectPool, ObjectHandle, usize);

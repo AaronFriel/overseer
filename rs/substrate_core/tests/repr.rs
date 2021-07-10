@@ -2,8 +2,8 @@ use std::{borrow::Cow, convert::TryFrom};
 
 use insta::{assert_display_snapshot, assert_snapshot, assert_yaml_snapshot};
 use overseer_substrate_core::game::{
-  Battlefield, Card, CardSubtype, CreatureType, CustomSubtype, Game, ManaCost, ManaCostPip,
-  ObjectColor, Player, PredefinedSubtype, RegisteredCard, TypeLine, Zone,
+  Battlefield, Card, CardSubtype, CreatureType, CustomSubtype, Game, ManaCost, ManaCostPip, Object,
+  ObjectColor, ObjectKind, Player, PredefinedSubtype, RegisteredCard, Status, TypeLine, Zone,
 };
 
 #[test]
@@ -11,12 +11,15 @@ fn zone_repr() {
   assert_yaml_snapshot!(Zone::<Battlefield>::new(), @r###"
   ---
   cards: []
-  count: 0
   "###);
 }
 
 fn make_player() -> Player {
   Player::new("Overseer", vec![], vec![])
+}
+
+fn named_player(name: impl ToString) -> Player {
+  Player::new(name, vec![], vec![])
 }
 
 #[test]
@@ -30,13 +33,11 @@ fn player_repr() {
   sideboard: []
   library:
     cards: []
-    count: 0
   hand:
     cards: []
-    count: 0
   graveyard:
     cards: []
-    count: 0
+  revealed: []
   life: 20
   has_left_game: false
   has_lost_game: false
@@ -49,69 +50,157 @@ fn player_handle_repr() {
 
   assert_yaml_snapshot!(game.active_player, @r###"
   ---
-  0
+  1
   "###)
 }
 
 #[test]
 fn game_repr() {
-  let game: Game = Game::new(vec![], vec![make_player()]);
+  let mut game: Game = Game::new(vec![], vec![named_player("First"), named_player("Second")]);
+
+  let handle = game.objects.insert(Object {
+    kind: ObjectKind::Card,
+    characteristics: None,
+    card: None,
+    status: Status::default(),
+    owner: None,
+    controller: None,
+  });
+
+  let first_player = &mut game.players[0];
+
+  first_player.hand.cards.push(handle);
 
   assert_yaml_snapshot!(game, @r###"
   ---
   cards: []
   players:
-    - name: Overseer
+    - name: First
       handle: ~
       controller: ~
       deck: []
       sideboard: []
       library:
         cards: []
-        count: 0
       hand:
-        cards: []
-        count: 0
+        cards:
+          - 1
       graveyard:
         cards: []
-        count: 0
+      revealed: []
       life: 20
       has_left_game: false
       has_lost_game: false
-  active_player: 0
+    - name: Second
+      handle: ~
+      controller: ~
+      deck: []
+      sideboard: []
+      library:
+        cards: []
+      hand:
+        cards: []
+      graveyard:
+        cards: []
+      revealed: []
+      life: 20
+      has_left_game: false
+      has_lost_game: false
+  objects:
+    next_index: 2
+    map:
+      1:
+        kind: Card
+        characteristics: ~
+        card: ~
+        status: []
+        owner: ~
+        controller: ~
+  active_player: 1
   log: []
   current_decision: 0
   decisions: []
-  "###)
+  battlefield:
+    cards: []
+  stack:
+    cards: []
+  exile:
+    cards: []
+  command:
+    cards: []
+  "###);
 }
-/*
+
 #[test]
-fn game_diff_repr() {
-  let game: Game = Game::new(vec![], vec![make_player(), make_player()]);
+fn game_view_as_repr() {
+  let mut game: Game = Game::new(vec![], vec![named_player("First"), named_player("Second")]);
+  let handle = game.objects.insert(Object {
+    kind: ObjectKind::Card,
+    characteristics: None,
+    card: None,
+    status: Status::default(),
+    owner: None,
+    controller: None,
+  });
 
-  let mut game_two: Game = game.clone();
-  game_two.set_active_player(game_two.get_players().last().unwrap());
-  game_two.get_player_mut(game_two.active_player).life = 30;
+  let first_player = &mut game.players[0];
+  first_player.hand.cards.push(handle);
 
-  let diff = serde_diff::Diff::serializable(&game, &&game_two);
+  let second_player_handle = game.get_player_handles().skip(1).next().unwrap();
 
-  assert_yaml_snapshot!(diff, @r###"
+  assert_yaml_snapshot!(game.view_as_player(second_player_handle), @r###"
   ---
-  - Enter:
-      Field: players
-  - Enter:
-      CollectionIndex: 1
-  - Enter:
-      Field: life
-  - Value: 30
-  - Exit
-  - Exit
-  - Enter:
-      Field: active_player
-  - Value: 1
-  "###)
+  cards: []
+  players:
+    - name: First
+      handle: ~
+      controller: ~
+      deck: []
+      sideboard: []
+      library:
+        cards: []
+      hand:
+        cards:
+          - 1
+      graveyard:
+        cards: []
+      revealed: []
+      life: 20
+      has_left_game: false
+      has_lost_game: false
+    - name: Second
+      handle: ~
+      controller: ~
+      deck: []
+      sideboard: []
+      library:
+        cards: []
+      hand:
+        cards: []
+      graveyard:
+        cards: []
+      revealed: []
+      life: 20
+      has_left_game: false
+      has_lost_game: false
+  objects:
+    next_index: 2
+    map: {}
+  active_player: 1
+  log: []
+  current_decision: 0
+  decisions: []
+  battlefield:
+    cards: []
+  stack:
+    cards: []
+  exile:
+    cards: []
+  command:
+    cards: []
+  "###);
 }
- */
+
 #[test]
 fn color_repr() {
   let color = ObjectColor::WU;

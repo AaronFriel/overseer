@@ -136,7 +136,7 @@ impl Game {
     visible_set
   }
 
-  pub fn get_player_visible_game(&self, view_as_player_handle: PlayerHandle) -> Self {
+  pub fn view_as_player(&self, view_as_player_handle: PlayerHandle) -> Self {
     let visible_set = self.get_visible_set(view_as_player_handle);
 
     let mut objects = self.objects.clone();
