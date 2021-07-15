@@ -101,6 +101,17 @@ macro_rules! make_refcounted_pool {
             self.map.remove(&handle.0.value);
           }
 
+          pub fn reassociate(&self, handle: &mut $struct_name) -> bool {
+            if let Some(inserted) = self.map.get(&handle.0.value) {
+              if let Some(rc) = inserted.rc.upgrade() {
+                handle.0.rc = rc;
+                return true;
+              }
+            };
+
+            false
+          }
+
           pub fn collect_garbage(&mut self) {
             let removable_keys: Vec<NonZero> = self.map.iter().filter_map(|(k, v)| {
               if Weak::strong_count(&v.rc) == 0 { Some(*k) } else { None }

@@ -8,4 +8,8 @@ edition = "2018"
 [dependencies]
 nonzero_ext = "0.2.0"
 serde = "1.0.126"
-serde-diff = { git = "https://github.com/AaronFriel/serde-diff", features = ["im"], rev = "cebff2dbba7a4f8d1d450d3a55062c17b2b8d1cd" }
+
+[dependencies.serde-diff]
+git = "https://github.com/AaronFriel/serde-diff"
+features = ["im", "smallvec"]
+rev = "ccef091feda60c0d195e7e87217933aef62c0f05"
