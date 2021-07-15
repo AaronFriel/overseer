@@ -18,9 +18,13 @@ lazy_static = "1.4.0"
 nonzero_ext = "0.2.0"
 paste = "1.0.5"
 serde = { version = "1.0.125", features = ["derive"] }
-serde-diff = { git = "https://github.com/AaronFriel/serde-diff", features = ["im"], rev = "cebff2dbba7a4f8d1d450d3a55062c17b2b8d1cd" }
 strum = { version = "0.21.0", features = ["derive"] }
 overseer_util = { path = "../util" }
+
+[dependencies.serde-diff]
+git = "https://github.com/AaronFriel/serde-diff"
+features = ["im", "smallvec"]
+rev = "ccef091feda60c0d195e7e87217933aef62c0f05"
 
 [dependencies.typetag]
 git = "https://github.com/AaronFriel/typetag"

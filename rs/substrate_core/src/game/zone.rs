@@ -1,4 +1,4 @@
-use std::marker::PhantomData;
+use std::{collections::VecDeque, marker::PhantomData};
 
 use serde::{Deserialize, Serialize};
 use serde_diff::SerdeDiff;
@@ -35,7 +35,7 @@ pub struct Command;
 #[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug, Default)]
 #[derive(Serialize, Deserialize, SerdeDiff)]
 pub struct Zone<K> {
-  pub cards: Vec<ObjectHandle>,
+  pub cards: VecDeque<ObjectHandle>,
   #[serde(skip)]
   #[serde_diff(skip)]
   kind: PhantomData<K>,
@@ -72,7 +72,7 @@ impl ZoneKinded for Command {
 impl<K> Zone<K> {
   pub fn new() -> Self {
     Self {
-      cards: vec![],
+      cards: Default::default(),
       kind: PhantomData,
     }
   }

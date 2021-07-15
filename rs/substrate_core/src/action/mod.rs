@@ -13,18 +13,10 @@ use crate::{
 
 #[derive(Clone, PartialEq, Hash, Debug)]
 #[derive(Serialize, Deserialize)]
-// , SerdeDiff)]
-// #[serde_diff(opaque)]
 pub enum ActionResult<T> {
   Step,
-  Do(Box<dyn SimpleAction>),
-  DoMulti(ActionList),
   Resolved(T),
 }
-
-/** [markdown]
- * **test**
- */
 
 #[derive(Clone, PartialEq, Hash, Debug)]
 #[derive(Serialize, Deserialize, SerdeDiff)]
@@ -78,7 +70,7 @@ pub enum PromptResult {
 #[dyn_partial_eq]
 #[clonable]
 pub trait SimpleAction: Debug + ActionHash + Clone {
-  fn apply(&mut self, game: &mut Game, choice: PromptResult) -> ActionResult<()>;
+  fn apply(&mut self, game: &mut Game) -> ActionResult<()>;
 }
 
 pub trait ComplexAction<T>: Debug + Clone {
@@ -90,7 +82,7 @@ where
   T: SimpleAction + Clone,
 {
   fn apply(&mut self, game: &mut Game) -> ActionResult<()> {
-    self.apply(game, PromptResult::None)
+    self.apply(game)
   }
 }
 

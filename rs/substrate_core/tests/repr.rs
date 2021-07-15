@@ -69,7 +69,7 @@ fn game_repr() {
 
   let first_player = &mut game.players[0];
 
-  first_player.hand.cards.push(handle);
+  first_player.hand.cards.push_back(handle);
 
   assert_yaml_snapshot!(game, @r###"
   ---
@@ -144,7 +144,7 @@ fn game_view_as_repr() {
   });
 
   let first_player = &mut game.players[0];
-  first_player.hand.cards.push(handle);
+  first_player.hand.cards.push_back(handle);
 
   let second_player_handle = game.get_player_handles().skip(1).next().unwrap();
 
@@ -447,7 +447,7 @@ fn registered_card_repr() {
     power: 1,
     toughness: 1,
     loyalty: 0,
-    color_indicator: ObjectColor::NONE,
+    color_indicator: None,
     rules_text: Cow::Borrowed(""),
     #[cfg(feature = "vanguard")]
     hand_modifier: 0,

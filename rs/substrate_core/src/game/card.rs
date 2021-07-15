@@ -3,7 +3,7 @@ use std::{borrow::Cow, collections::HashMap, sync::RwLock};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_diff::SerdeDiff;
 
-use crate::game::{ManaCost, ObjectColor, TypeLine, ObjectHandle};
+use crate::game::{Characterized, ManaCost, ObjectColor, ObjectColored, ObjectHandle, TypeLine};
 
 #[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug, Default)]
 #[derive(Serialize, Deserialize, SerdeDiff)]
@@ -13,17 +13,17 @@ pub struct Card {
   #[serde_diff(opaque)]
   pub mana_cost: ManaCost,
 
-  pub color_indicator: ObjectColor,
+  pub color_indicator: Option<ObjectColor>,
 
   pub type_line: TypeLine,
 
   #[serde_diff(opaque)]
   pub rules_text: Cow<'static, str>,
 
-  pub power: usize,
-  pub toughness: usize,
+  pub power: u32,
+  pub toughness: u32,
 
-  pub loyalty: usize,
+  pub loyalty: u32,
 
   #[cfg(feature = "vanguard")]
   /// 210.
@@ -46,7 +46,7 @@ impl Card {
     Self {
       name: Cow::Borrowed(""),
       mana_cost: ManaCost::NONE,
-      color_indicator: ObjectColor::NONE,
+      color_indicator: None,
       type_line: TypeLine::const_default(),
       rules_text: Cow::Borrowed(""),
       power: 0,
@@ -60,6 +60,56 @@ impl Card {
   }
 }
 
+impl Characterized for Card {
+  fn get_name(&self) -> &Cow<'static, str> {
+    &self.name
+  }
+
+  fn get_mana_cost(&self) -> &ManaCost {
+    &self.mana_cost
+  }
+
+  fn get_color(&self) -> ObjectColor {
+    self
+      .color_indicator
+      .unwrap_or(self.mana_cost.get_object_color())
+  }
+
+  fn get_color_indicator(&self) -> Option<ObjectColor> {
+    self.color_indicator
+  }
+
+  fn get_type_line(&self) -> &TypeLine {
+    &self.type_line
+  }
+
+  fn get_rules_text(&self) -> &Cow<'static, str> {
+    &self.rules_text
+  }
+
+  fn get_power(&self) -> u32 {
+    self.power
+  }
+
+  fn get_toughness(&self) -> u32 {
+    self.toughness
+  }
+
+  fn get_loyalty(&self) -> u32 {
+    self.loyalty
+  }
+
+  #[cfg(feature = "vanguard")]
+  fn get_hand_modifier(&self) -> i8 {
+    self.hand_modifier
+  }
+
+  #[cfg(feature = "vanguard")]
+  fn get_life_modifier(&self) -> i8 {
+    self.life_modifier
+  }
+}
+
 lazy_static::lazy_static! {
   static ref CARD_REGISTRY: RwLock<HashMap<String, Cow<'static, Card>>> = RwLock::new(HashMap::new());
 }
@@ -67,6 +117,20 @@ lazy_static::lazy_static! {
 #[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug, Default)]
 #[derive(SerdeDiff)]
 pub struct RegisteredCard(Cow<'static, Card>);
+
+impl From<&'static Card> for RegisteredCard {
+  fn from(card: &'static Card) -> Self {
+    RegisteredCard(Cow::Borrowed(card))
+  }
+}
+
+impl std::ops::Deref for RegisteredCard {
+  type Target = Card;
+
+  fn deref(&self) -> &Self::Target {
+    &self.0
+  }
+}
 
 impl RegisteredCard {
   pub fn register(card: &'static Card) -> Self {
@@ -191,9 +255,7 @@ impl<'de> Deserialize<'de> for RegisteredCard {
   }
 }
 
-pub type CardHandle = ObjectHandle;
-
-pub type CardList = Vec<CardHandle>;
+pub type CardList = Vec<ObjectHandle>;
 
 #[cfg(test)]
 mod test {
@@ -201,7 +263,7 @@ mod test {
 
   #[test]
   fn assert_sizeof() {
-    let expected_size = 160;
+    let expected_size = 144;
     #[cfg(feature = "vanguard")]
     let expected_size = expected_size + 2;
 

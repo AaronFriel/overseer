@@ -69,6 +69,8 @@ impl TypeLineValue {
 pub struct TypeLine(Cow<'static, [TypeLineValue]>);
 
 impl TypeLine {
+  pub const NONE: TypeLine = TypeLine(Cow::Borrowed(&[]));
+
   pub const fn from_static(value: &'static [TypeLineValue]) -> Self {
     TypeLine(Cow::Borrowed(value))
   }

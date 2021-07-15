@@ -6,7 +6,6 @@ pub trait Viewable<'a> {
   fn view_as(&self, context: &Self::Context) -> Self;
 }
 
-
 impl<'a, T> Viewable<'a> for Vec<T>
 where
   T: Viewable<'a>,

@@ -1,6 +1,6 @@
-use std::collections::{HashSet};
+use std::collections::HashSet;
 
-use overseer_util::{Handle, make_handle};
+use overseer_util::{make_handle, Handle};
 use serde::{Deserialize, Serialize};
 use serde_diff::SerdeDiff;
 
@@ -55,9 +55,7 @@ impl Game {
       decisions: Vec::new(),
     }
   }
-}
 
-impl Game {
   pub fn get_active_player(&self) -> Option<&Player> {
     todo!()
     // self.active_player.map(|active_player|
@@ -68,12 +66,12 @@ impl Game {
     (0..self.players.len()).map(PlayerHandle::from_index)
   }
 
-  pub fn get_player(&self, handle: PlayerHandle) -> &Player {
-    &self.players[handle.to_index()]
+  pub fn get_player(&self, player_handle: PlayerHandle) -> &Player {
+    &self.players[player_handle.to_index()]
   }
 
-  pub fn get_player_mut(&mut self, handle: PlayerHandle) -> &mut Player {
-    &mut self.players[handle.to_index()]
+  pub fn get_player_mut(&mut self, player_handle: PlayerHandle) -> &mut Player {
+    &mut self.players[player_handle.to_index()]
   }
 
   /// Set the game's active player.
@@ -96,17 +94,16 @@ impl Game {
     PlayerHandle::from_index((player_handle.to_index() + 1) % self.players.len())
   }
 
+  pub fn current_decision(&self) -> usize {
+    self.current_decision
+  }
+
   pub fn push_decision(&mut self, value: impl ToString) {
     self.decisions.push(value.to_string());
   }
 
-  pub fn get_decision(&mut self) -> Option<&str> {
-    if let Some(decision) = self.decisions.get(self.current_decision) {
-      self.current_decision += 1;
-      Some(decision)
-    } else {
-      None
-    }
+  pub fn get_decision(&self, index: usize) -> Option<&str> {
+    self.decisions.get(index).map(|x| x.as_ref())
   }
 
   fn enumerate_players(&self) -> impl Iterator<Item = (PlayerHandle, &Player)> {
@@ -148,23 +145,22 @@ impl Game {
     }
 
     Self {
-        cards: self.cards.clone(),
-        players: self.players.clone(),
-        objects,
-        active_player: self.active_player.clone(),
+      cards: self.cards.clone(),
+      players: self.players.clone(),
+      objects,
+      active_player: self.active_player.clone(),
 
-        battlefield: self.battlefield.clone(),
-        stack: self.stack.clone(),
-        exile: self.exile.clone(),
-        command: self.command.clone(),
+      battlefield: self.battlefield.clone(),
+      stack: self.stack.clone(),
+      exile: self.exile.clone(),
+      command: self.command.clone(),
 
-        log: self.log.clone(),
-        current_decision: self.current_decision.clone(),
-        decisions: self.decisions.clone(),
+      log: self.log.clone(),
+      current_decision: self.current_decision.clone(),
+      decisions: self.decisions.clone(),
     }
   }
 }
-
 
 fn merge_object_list<'a>(
   set: &mut HashSet<ObjectHandle>,

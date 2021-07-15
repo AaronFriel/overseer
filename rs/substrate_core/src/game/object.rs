@@ -1,13 +1,12 @@
 use std::borrow::Cow;
 
+use bitflags::bitflags;
 use overseer_util::make_refcounted_pool;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_diff::SerdeDiff;
-use bitflags::bitflags;
 
-
-use crate::{
-  game::{ManaCost, ObjectColor, PlayerHandle, TypeLine, RegisteredCard},
+use super::{
+  Characteristics, Characterized, ManaCost, ObjectColor, PlayerHandle, RegisteredCard, TypeLine,
 };
 
 #[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
@@ -26,6 +25,7 @@ pub enum ObjectKind {
 #[derive(Serialize, Deserialize, SerdeDiff)]
 pub struct Object {
   pub kind: ObjectKind,
+  // TODO: make private
   pub characteristics: Option<Characteristics>,
   pub card: Option<RegisteredCard>,
 
@@ -35,37 +35,132 @@ pub struct Object {
   pub controller: Option<PlayerHandle>,
 }
 
-#[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug, Default)]
-#[derive(Serialize, Deserialize, SerdeDiff)]
-/// 109.3
-pub struct Characteristics {
-  #[serde_diff(opaque)]
-  pub name: Cow<'static, str>,
-  pub mana_cost: ManaCost,
+impl From<RegisteredCard> for Object {
+  #[inline]
+  fn from(card: RegisteredCard) -> Self {
+    Self {
+      kind: ObjectKind::Card,
+      characteristics: Default::default(),
+      card: Some(card),
+      status: Default::default(),
+      owner: Default::default(),
+      controller: Default::default(),
+    }
+  }
+}
 
-  pub color: ObjectColor,
-  pub color_indicator: Option<usize>,
+const EMPTY_STR: Cow<'static, str> = Cow::Borrowed("");
 
-  pub type_line: TypeLine,
+impl Characterized for Object {
+  fn get_name(&self) -> &Cow<'static, str> {
+    if let Some(characteristics) = &self.characteristics {
+      characteristics.get_name()
+    } else if let Some(card) = &self.card {
+      card.get_name()
+    } else {
+      &EMPTY_STR
+    }
+  }
 
-  #[serde_diff(opaque)]
-  pub rules_text: Cow<'static, str>,
-  // pub abilities: Vec<String>,
+  fn get_mana_cost(&self) -> &ManaCost {
+    if let Some(characteristics) = &self.characteristics {
+      characteristics.get_mana_cost()
+    } else if let Some(card) = &self.card {
+      card.get_mana_cost()
+    } else {
+      &ManaCost::NONE
+    }
+  }
 
-  // 208.
-  pub power: usize,
-  pub toughness: usize,
+  fn get_color(&self) -> ObjectColor {
+    if let Some(characteristics) = &self.characteristics {
+      characteristics.get_color()
+    } else if let Some(card) = &self.card {
+      card.get_color()
+    } else {
+      Default::default()
+    }
+  }
 
-  /// 209.
-  pub loyalty: usize,
+  fn get_color_indicator(&self) -> Option<ObjectColor> {
+    if let Some(characteristics) = &self.characteristics {
+      characteristics.get_color_indicator()
+    } else if let Some(card) = &self.card {
+      card.get_color_indicator()
+    } else {
+      Default::default()
+    }
+  }
 
-  #[cfg(feature = "vanguard")]
-  /// 210.
-  pub hand_modifier: i8,
+  fn get_type_line(&self) -> &TypeLine {
+    if let Some(characteristics) = &self.characteristics {
+      characteristics.get_type_line()
+    } else if let Some(card) = &self.card {
+      card.get_type_line()
+    } else {
+      &TypeLine::NONE
+    }
+  }
 
-  #[cfg(feature = "vanguard")]
-  /// 211.
-  pub life_modifier: i8,
+  fn get_rules_text(&self) -> &Cow<'static, str> {
+    if let Some(characteristics) = &self.characteristics {
+      characteristics.get_rules_text()
+    } else if let Some(card) = &self.card {
+      card.get_rules_text()
+    } else {
+      &EMPTY_STR
+    }
+  }
+
+  fn get_power(&self) -> u32 {
+    if let Some(characteristics) = &self.characteristics {
+      characteristics.get_power()
+    } else if let Some(card) = &self.card {
+      card.get_power()
+    } else {
+      Default::default()
+    }
+  }
+
+  fn get_toughness(&self) -> u32 {
+    if let Some(characteristics) = &self.characteristics {
+      characteristics.get_toughness()
+    } else if let Some(card) = &self.card {
+      card.get_toughness()
+    } else {
+      Default::default()
+    }
+  }
+
+  fn get_loyalty(&self) -> u32 {
+    if let Some(characteristics) = &self.characteristics {
+      characteristics.get_loyalty()
+    } else if let Some(card) = &self.card {
+      card.get_loyalty()
+    } else {
+      Default::default()
+    }
+  }
+
+  fn get_hand_modifier(&self) -> i8 {
+    if let Some(characteristics) = &self.characteristics {
+      characteristics.get_hand_modifier()
+    } else if let Some(card) = &self.card {
+      card.get_hand_modifier()
+    } else {
+      Default::default()
+    }
+  }
+
+  fn get_life_modifier(&self) -> i8 {
+    if let Some(characteristics) = &self.characteristics {
+      characteristics.get_life_modifier()
+    } else if let Some(card) = &self.card {
+      card.get_life_modifier()
+    } else {
+      Default::default()
+    }
+  }
 }
 
 bitflags! {
@@ -78,9 +173,9 @@ bitflags! {
 }
 
 impl Default for Status {
-    fn default() -> Self {
-        Status::empty()
-    }
+  fn default() -> Self {
+    Status::empty()
+  }
 }
 
 impl Serialize for Status {
@@ -127,18 +222,28 @@ impl<'de> Deserialize<'de> for Status {
   }
 }
 
+make_refcounted_pool!(Object, ObjectPool, ObjectHandle, u32);
+
 #[cfg(test)]
 mod test {
   use super::*;
 
   #[test]
   fn size_of_characteristics() {
-    let expected_size = 176;
+    let expected_size = 144;
     #[cfg(feature = "vanguard")]
     let expected_size = expected_size + 2;
 
     assert_eq!(std::mem::size_of::<Characteristics>(), expected_size);
   }
-}
 
-make_refcounted_pool!(Object, ObjectPool, ObjectHandle, usize);
+  #[test]
+  fn size_of() {
+    make_refcounted_pool!(Object, FooPool, FooHandle, u32);
+    assert_eq!(std::mem::size_of::<FooHandle>(), 16);
+    assert_eq!(
+      std::mem::size_of::<FooHandle>(),
+      std::mem::size_of::<Option<FooHandle>>()
+    );
+  }
+}
