@@ -160,8 +160,7 @@ fn game_view_as_repr() {
       library:
         cards: []
       hand:
-        cards:
-          - 1
+        cards: []
       graveyard:
         cards: []
       revealed: []
