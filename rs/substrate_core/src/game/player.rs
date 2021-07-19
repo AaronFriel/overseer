@@ -3,7 +3,7 @@ use serde_diff::SerdeDiff;
 
 use crate::game::{Graveyard, Hand, Library, ObjectHandle, PlayerHandle, RegisteredCard, Zone};
 
-#[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug, Default)]
+#[derive(Clone, Eq, PartialEq, Hash, Debug, Default)]
 #[derive(Serialize, Deserialize, SerdeDiff)]
 pub struct Player {
   pub name: String,
@@ -47,6 +47,23 @@ impl Player {
 
       has_left_game: false,
       has_lost_game: false,
+    }
+  }
+
+  pub fn clone_visible(&self, mut visible_set_filter: impl FnMut(&ObjectHandle) -> bool) -> Player {
+    let library = self.library.clone_visible(&mut visible_set_filter);
+    let hand = self.hand.clone_visible(&mut visible_set_filter);
+    let graveyard = self.graveyard.clone_visible(&mut visible_set_filter);
+
+    Player {
+      name: self.name.clone(),
+      deck: Default::default(),
+      sideboard: Default::default(),
+      revealed: Default::default(),
+      library,
+      hand,
+      graveyard,
+      ..*self
     }
   }
 }

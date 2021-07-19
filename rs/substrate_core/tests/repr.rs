@@ -11,6 +11,7 @@ fn zone_repr() {
   assert_yaml_snapshot!(Zone::<Battlefield>::new(), @r###"
   ---
   cards: []
+  count: 0
   "###);
 }
 
@@ -33,10 +34,13 @@ fn player_repr() {
   sideboard: []
   library:
     cards: []
+    count: 0
   hand:
     cards: []
+    count: 0
   graveyard:
     cards: []
+    count: 0
   revealed: []
   life: 20
   has_left_game: false
@@ -69,7 +73,7 @@ fn game_repr() {
 
   let first_player = &mut game.players[0];
 
-  first_player.hand.cards.push_back(handle);
+  first_player.hand.insert(handle);
 
   assert_yaml_snapshot!(game, @r###"
   ---
@@ -82,11 +86,14 @@ fn game_repr() {
       sideboard: []
       library:
         cards: []
+        count: 0
       hand:
         cards:
           - 1
+        count: 1
       graveyard:
         cards: []
+        count: 0
       revealed: []
       life: 20
       has_left_game: false
@@ -98,10 +105,13 @@ fn game_repr() {
       sideboard: []
       library:
         cards: []
+        count: 0
       hand:
         cards: []
+        count: 0
       graveyard:
         cards: []
+        count: 0
       revealed: []
       life: 20
       has_left_game: false
@@ -122,12 +132,16 @@ fn game_repr() {
   decisions: []
   battlefield:
     cards: []
+    count: 0
   stack:
     cards: []
+    count: 0
   exile:
     cards: []
+    count: 0
   command:
     cards: []
+    count: 0
   "###);
 }
 
@@ -144,7 +158,8 @@ fn game_view_as_repr() {
   });
 
   let first_player = &mut game.players[0];
-  first_player.hand.cards.push_back(handle);
+
+  first_player.hand.insert(handle);
 
   let second_player_handle = game.get_player_handles().skip(1).next().unwrap();
 
@@ -159,10 +174,13 @@ fn game_view_as_repr() {
       sideboard: []
       library:
         cards: []
+        count: 0
       hand:
         cards: []
+        count: 1
       graveyard:
         cards: []
+        count: 0
       revealed: []
       life: 20
       has_left_game: false
@@ -174,10 +192,13 @@ fn game_view_as_repr() {
       sideboard: []
       library:
         cards: []
+        count: 0
       hand:
         cards: []
+        count: 0
       graveyard:
         cards: []
+        count: 0
       revealed: []
       life: 20
       has_left_game: false
@@ -191,12 +212,16 @@ fn game_view_as_repr() {
   decisions: []
   battlefield:
     cards: []
+    count: 0
   stack:
     cards: []
+    count: 0
   exile:
     cards: []
+    count: 0
   command:
     cards: []
+    count: 0
   "###);
 }
 

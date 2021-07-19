@@ -255,8 +255,6 @@ impl<'de> Deserialize<'de> for RegisteredCard {
   }
 }
 
-pub type CardList = Vec<ObjectHandle>;
-
 #[cfg(test)]
 mod test {
   use super::*;

@@ -120,6 +120,7 @@ impl Game {
       if player_handle == view_as_player_handle || player.controller == Some(view_as_player_handle)
       {
         merge_object_list(&mut visible_set, player.hand.iter());
+        merge_object_list(&mut visible_set, player.graveyard.iter());
       } else {
         // merge_object_list(&mut hidden_set, player.hand.iter());
       }
@@ -144,60 +145,33 @@ impl Game {
       }
     }
 
-    let mut players = self.players.clone();
-
     let visible_set_filter = |handle: &ObjectHandle| visible_set.contains(handle);
 
-    for player in players.iter_mut() {
-      let zone_cards = [
-        &mut player.library.cards,
-        &mut player.hand.cards,
-        &mut player.graveyard.cards,
-      ];
+    let players = self
+      .players
+      .iter()
+      .map(|p| p.clone_visible(visible_set_filter))
+      .collect();
 
-      if player.handle != Some(view_as_player_handle) {
-        player.revealed.clear();
-        player.deck.clear();
-        player.sideboard.clear();
-      }
-
-      if player.handle != Some(view_as_player_handle)
-        && player.controller != Some(view_as_player_handle)
-      {
-        for zone in zone_cards {
-          zone.retain(visible_set_filter);
-        }
-      }
-    }
-
-    let mut battlefield = self.battlefield.clone();
-    let mut stack = self.stack.clone();
-    let mut exile = self.exile.clone();
-    let mut command = self.command.clone();
-    let zone_cards = [
-      &mut battlefield.cards,
-      &mut stack.cards,
-      &mut exile.cards,
-      &mut command.cards,
-    ];
-    for zone in zone_cards {
-      zone.retain(visible_set_filter);
-    }
+    let battlefield = self.battlefield.clone_visible(visible_set_filter);
+    let stack = self.stack.clone_visible(visible_set_filter);
+    let exile = self.exile.clone_visible(visible_set_filter);
+    let command = self.command.clone_visible(visible_set_filter);
 
     Self {
       cards: self.cards.clone(),
       players,
       objects,
-      active_player: self.active_player.clone(),
+      active_player: self.active_player,
 
       battlefield,
       stack,
       exile,
       command,
 
-      log: self.log.clone(),
-      current_decision: self.current_decision.clone(),
-      decisions: self.decisions.clone(),
+      log: Default::default(),
+      current_decision: Default::default(),
+      decisions: Default::default(),
     }
   }
 }
