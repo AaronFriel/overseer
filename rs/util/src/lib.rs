@@ -1,3 +1,5 @@
+#[doc(hidden)]
+pub mod deps;
 pub mod handle;
 pub mod pool;
 

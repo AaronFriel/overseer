@@ -1,60 +1,144 @@
+use std::rc::{Rc, Weak};
+
+use serde::{Deserialize, Serialize};
+
+#[derive(
+  Debug,
+  Clone,
+  PartialEq,
+  Eq,
+  PartialOrd,
+  Ord,
+  Serialize,
+  Deserialize,
+  Default
+)]
+pub struct Handle {
+  pub rc: Rc<()>,
+  pub index: usize,
+}
+
+impl Handle {
+  pub fn new(index: usize) -> Self {
+    Self {
+      index,
+      rc: Rc::default(),
+    }
+  }
+}
+
+impl std::hash::Hash for Handle {
+  fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+    self.index.hash(state)
+  }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum Entry<T> {
+  Virtual {
+    real_index: usize,
+    value: Rc<T>,
+    #[serde(skip)]
+    rc: Weak<()>,
+  },
+  Real {
+    value: Rc<T>,
+    #[serde(skip)]
+    rc: Weak<()>,
+  },
+}
+
+impl<T> Entry<T> {
+  pub fn promote(&mut self) {
+    use Entry::*;
+    if self.is_virtual() {
+      take_mut::take(self, |this| match this {
+        Virtual { value, rc, .. } => Real { value, rc },
+        otherwise => otherwise,
+      });
+    }
+  }
+
+  /// Returns `true` if the entry is [`Virtual`].
+  pub fn is_virtual(&self) -> bool {
+    matches!(self, Self::Virtual { .. })
+  }
+}
+
+impl<T> Entry<T> {
+  pub fn get_rc(&self) -> &Weak<()> {
+    match self {
+      Virtual { rc, .. } | Real { rc, .. } => &rc,
+    }
+  }
+
+  pub fn get_value_rc(&self) -> &Rc<T> {
+    match self {
+      Virtual { value, .. } | Real { value, .. } => &value,
+    }
+  }
+
+  pub fn get(&self) -> &T {
+    match self {
+      Virtual { value, .. } | Real { value, .. } => &value,
+    }
+  }
+
+  pub fn get_mut(&mut self) -> &mut T
+  where
+    T: Clone,
+  {
+    match self {
+      Virtual { ref mut value, .. } | Real { ref mut value, .. } => Rc::make_mut(value),
+    }
+  }
+
+  pub fn ptr_eq(&self, other: &Entry<T>) -> bool {
+    Rc::ptr_eq(self.get_value_rc(), other.get_value_rc())
+  }
+}
+use Entry::*;
+
 #[macro_export]
 macro_rules! make_refcounted_pool {
-  ($object_name:ident, $pool_name:ident, $struct_name:ident, $size:ty) => {
+  ($object_name:ident, $pool_name:ident, $struct_name:ident) => {
     paste::paste! {
       mod [<$struct_name:snake _impl>] {
-        use std::{
-          collections::HashMap as StdHashMap,
-          ptr,
-          rc::{Rc, Weak},
-        };
-
-        use im::HashMap;
-        use nonzero_ext::NonZeroAble;
-        use serde::{Deserialize, Serialize};
-        use serde_diff::SerdeDiff;
-
-        use super::$object_name as Obj;
-        use $crate::pool::{RefCounted, WeakCounted};
-
+        use std::rc::{Rc, Weak};
         #[cfg(test)]
         use std::{collections::hash_map::DefaultHasher, hash::BuildHasherDefault};
+
+        use im::HashMap;
+        use serde::{Deserialize, Serialize};
+
+        use $crate::pool::{Entry, Handle};
+        use Entry::*;
+
+        use super::$object_name as Obj;
+
         #[cfg(test)]
         type Hasher = BuildHasherDefault<DefaultHasher>;
 
-        // Macro inputs:
-        pub type Zeroable = $size;
-        pub type NonZero = <$size as NonZeroAble>::NonZero;
-
-        #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
-        #[derive(Serialize, Deserialize, SerdeDiff)]
+        #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Default)]
+        #[derive(Serialize, Deserialize)]
         #[serde(transparent)]
-        pub struct $struct_name(RefCounted<NonZero>);
+        pub struct $struct_name(Handle);
 
-        impl $struct_name {
-          #[inline]
-          pub(crate) fn weak_clone(&self) -> Self {
-            $struct_name(RefCounted{
-              value: self.0.value,
-              rc: Rc::default(),
-            })
-          }
-        }
-
-        #[derive(Clone, Hash, Debug)]
-        #[derive(Serialize, Deserialize, SerdeDiff)]
+        #[derive(Clone, Debug)]
+        #[derive(Serialize, Deserialize)]
         pub struct $pool_name {
-          next_index: NonZero,
+          next_index: usize,
           #[cfg(test)]
-          map: HashMap<NonZero, WeakCounted<Obj>, Hasher>,
+          map: HashMap<usize, Entry<Obj>, Hasher>,
           #[cfg(not(test))]
-          map: HashMap<NonZero, WeakCounted<Obj>>,
+          map: HashMap<usize, Entry<Obj>>,
         }
 
         impl $pool_name {
           pub fn new() -> Self {
             Self {
-              next_index: unsafe { (1 as Zeroable).into_nonzero_unchecked() },
+              next_index: 0,
               #[cfg(test)]
               map: HashMap::with_hasher(Hasher::default()),
               #[cfg(not(test))]
@@ -62,49 +146,89 @@ macro_rules! make_refcounted_pool {
             }
           }
 
-          pub fn insert(&mut self, object: Obj) -> $struct_name {
+          fn next_index(&mut self) -> usize {
             let index = self.next_index;
-            let next_index = unsafe { (index.get() + 1).into_nonzero_unchecked() };
+            self.next_index += 1;
+            index
+          }
 
-            let handle = RefCounted {
-              value: index,
-              rc: Rc::default(),
-            };
-            let inserted = WeakCounted {
-              value: object,
+          pub fn insert(&mut self, object: Obj) -> $struct_name {
+            let index = self.next_index();
+
+            let handle = Handle::new(index);
+            self.map.insert(index, Real {
+              value: Rc::new(object),
               rc: Rc::downgrade(&handle.rc),
-            };
-
-            self.map.insert(index, inserted);
-            self.next_index = next_index;
+            });
 
             $struct_name(handle)
           }
 
-          pub fn get(&self, handle: &$struct_name) -> Option<&Obj> {
+
+          pub fn reinsert(&mut self, $struct_name(handle): &$struct_name) -> Option<$struct_name> {
+            let index = handle.index;
+            let new_handle_index = self.next_index();
+            if let Some(current_entry) = self
+              .map
+              .get(&handle.index)
+              .filter(|entry| Weak::as_ptr(entry.get_rc()) == Rc::as_ptr(&handle.rc))
+            {
+              match current_entry {
+                Virtual {
+                  real_index: index,
+                  value,
+                  ..
+                } => {
+                  let handle = Handle::new(new_handle_index);
+                  let value = Virtual {
+                    value: value.clone(),
+                    rc: Rc::downgrade(&handle.rc),
+                    real_index: *index,
+                  };
+                  self.map.insert(new_handle_index, value);
+                  Some($struct_name(handle))
+                }
+                Real { value, .. } => {
+                  let handle = Handle::new(new_handle_index);
+                  let value = Virtual {
+                    value: value.clone(),
+                    rc: Rc::downgrade(&handle.rc),
+                    real_index: index,
+                  };
+                  self.map.insert(new_handle_index, value);
+                  Some($struct_name(handle))
+                }
+              }
+            } else {
+              None
+            }
+          }
+
+          pub fn get(&self, $struct_name(handle): &$struct_name) -> Option<&Obj> {
             self.map
-              .get(&handle.0.value)
-              .and_then(|f|
-                  if ptr::eq(&*handle.0.rc, f.rc.as_ptr()) {
-                    Some(&f.value)
-                  } else {
-                    None
-                  }
-              )
+              .get(&handle.index)
+              .filter(|entry| Weak::as_ptr(entry.get_rc()) == Rc::as_ptr(&handle.rc))
+              .map(|entry| entry.get())
           }
 
-          pub fn get_mut(&mut self, handle: &$struct_name) -> Option<&mut Obj> {
-            self.map.get_mut(&handle.0.value).map(|f| &mut f.value)
+          pub fn get_mut(&mut self, $struct_name(handle): &$struct_name) -> Option<&mut Obj> {
+            self.map
+              .get_mut(&handle.index)
+              .filter(|entry| Weak::as_ptr(entry.get_rc()) == Rc::as_ptr(&handle.rc))
+              .map(|entry| {
+                entry.promote();
+                entry.get_mut()
+              })
           }
 
-          pub fn remove(&mut self, handle: &$struct_name) {
-            self.map.remove(&handle.0.value);
+          pub fn remove(&mut self, $struct_name(handle): &$struct_name) {
+            self.map.remove(&handle.index);
           }
 
-          pub fn reassociate(&self, handle: &mut $struct_name) -> bool {
-            if let Some(inserted) = self.map.get(&handle.0.value) {
-              if let Some(rc) = inserted.rc.upgrade() {
-                handle.0.rc = rc;
+          pub fn reassociate(&mut self, $struct_name(handle): &mut $struct_name) -> bool {
+            if let Some(inserted) = self.map.get(&handle.index) {
+              if let Some(rc) = Weak::upgrade(inserted.get_rc()) {
+                handle.rc = rc;
                 return true;
               }
             };
@@ -113,32 +237,41 @@ macro_rules! make_refcounted_pool {
           }
 
           pub fn collect_garbage(&mut self) {
-            let removable_keys: Vec<NonZero> = self.map.iter().filter_map(|(k, v)| {
-              if Weak::strong_count(&v.rc) == 0 { Some(*k) } else { None }
-            }).collect();
-
-            removable_keys.iter().for_each(|k| {
-              if let Some(v) = self.map.remove(&k) {
-                std::mem::drop(v);
+            for (k, entry) in self.map.clone().iter() {
+              if Weak::strong_count(entry.get_rc()) == 0 {
+                self.map.remove(k);
               }
-            });
+            }
+            let key_ref = self.map.clone();
+            let mut deduplicated_keys = std::collections::HashMap::<usize, usize>::new();
+            for (k, entry) in self.map.iter_mut() {
+              match entry {
+                Virtual { mut real_index, .. }
+                  if key_ref
+                    .get(&real_index)
+                    .map_or(true, |ref real_entry| !real_entry.ptr_eq(entry)) =>
+                {
+                  if let Some(new_real_index) = deduplicated_keys.get(&real_index) {
+                    *&mut real_index = *new_real_index;
+                  } else {
+                    deduplicated_keys.insert(real_index, *k);
+                    entry.promote();
+                  };
+                }
+                _ => {}
+              }
+            }
           }
 
-          pub fn iter(&self) -> impl Iterator<Item = (Zeroable, &Obj)> {
+          pub fn iter(&self) -> impl Iterator<Item = (usize, &Obj)> {
             self.map.iter().map(|(k, v)| {
-              (k.get(), &v.value)
+              (*k, v.get())
             })
           }
 
-          pub fn iter_weak(&self) -> impl Iterator<Item = ($struct_name, &Obj)> {
+          pub fn into_hashmap(&self) -> std::collections::HashMap<usize, &Obj> {
             self.map.iter().map(|(k, v)| {
-              ($struct_name(RefCounted { value: *k, rc: Rc::default() }), &v.value)
-            })
-          }
-
-          pub fn into_hashmap(&self) -> StdHashMap<Zeroable, &Obj> {
-            self.map.iter().map(|(k, v)| {
-              (k.get(), &v.value)
+              (*k, v.get())
             }).collect()
           }
 
@@ -152,130 +285,3 @@ macro_rules! make_refcounted_pool {
     }
   };
 }
-
-mod ref_counted {
-  use std::{
-    fmt::Debug,
-    rc::{Rc, Weak},
-  };
-
-  use serde::{Deserialize, Deserializer, Serialize, Serializer};
-  use serde_diff::SerdeDiff;
-
-  macro_rules! make_refcounted {
-    ($object_name:ident, $rc_type:ident) => {
-      #[derive(Clone, Debug)]
-      pub struct $object_name<T> {
-        pub value: T,
-        pub rc: $rc_type<()>,
-      }
-
-      impl<T> PartialEq for $object_name<T>
-      where
-        T: PartialEq,
-      {
-        fn eq(&self, other: &Self) -> bool {
-          self.value.eq(&other.value)
-        }
-      }
-
-      impl<T> Eq for $object_name<T>
-      where
-        T: Eq,
-      {
-        fn assert_receiver_is_total_eq(&self) {}
-      }
-
-      impl<T> PartialOrd for $object_name<T>
-      where
-        T: PartialOrd,
-      {
-        fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-          self.value.partial_cmp(&other.value)
-        }
-      }
-
-      impl<T> Ord for $object_name<T>
-      where
-        T: Ord,
-      {
-        fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-          self.value.cmp(&other.value)
-        }
-      }
-
-      impl<T> std::hash::Hash for $object_name<T>
-      where
-        T: std::hash::Hash,
-      {
-        fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-          self.value.hash(state)
-        }
-      }
-
-      impl<T> Serialize for $object_name<T>
-      where
-        T: Serialize,
-      {
-        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where
-          S: Serializer,
-        {
-          self.value.serialize(serializer)
-        }
-      }
-      //#endregion
-
-      impl<'de, T> Deserialize<'de> for $object_name<T>
-      where
-        T: Deserialize<'de>,
-      {
-        fn deserialize<D>(deserializer: D) -> Result<$object_name<T>, D::Error>
-        where
-          D: Deserializer<'de>,
-        {
-          let value = T::deserialize(deserializer)?;
-          Ok($object_name {
-            value,
-            rc: $rc_type::default(),
-          })
-        }
-      }
-
-      impl<T> SerdeDiff for $object_name<T>
-      where
-        T: PartialEq + SerdeDiff + Serialize,
-        for<'de> T: Deserialize<'de>,
-      {
-        fn diff<'a, S: serde::ser::SerializeSeq>(
-          &self,
-          ctx: &mut serde_diff::DiffContext<'a, S>,
-          other: &Self,
-        ) -> Result<bool, S::Error> {
-          if self.value != other.value {
-            ctx.save_value(other)?;
-            Ok(true)
-          } else {
-            Ok(false)
-          }
-        }
-
-        fn apply<'de, A>(
-          &mut self,
-          seq: &mut A,
-          ctx: &mut serde_diff::ApplyContext,
-        ) -> Result<bool, <A as serde::de::SeqAccess<'de>>::Error>
-        where
-          A: serde::de::SeqAccess<'de>,
-        {
-          ctx.read_value(seq, self)
-        }
-      }
-    };
-  }
-
-  make_refcounted!(RefCounted, Rc);
-  make_refcounted!(WeakCounted, Weak);
-}
-
-pub use ref_counted::{RefCounted, WeakCounted};
