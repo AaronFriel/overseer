@@ -6,10 +6,18 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-nonzero_ext = "0.2.0"
-serde = "1.0.126"
+nonzero_ext = "~0.2.0"
+paste = "^1"
+im = { version = "^15", features = ["serde"] }
+serde = { version = "^1", features = ["derive", "rc"] }
+take_mut = "0.2.2"
 
 [dependencies.serde-diff]
 git = "https://github.com/AaronFriel/serde-diff"
 features = ["im", "smallvec"]
 rev = "ccef091feda60c0d195e7e87217933aef62c0f05"
+
+[dev-dependencies]
+insta = { version = "^1.7.1", features = ["ron"]}
+serde_json = "^1.0.64"
+nohash-hasher = "^0.2.0"

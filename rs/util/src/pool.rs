@@ -2,6 +2,7 @@ use std::{
   fmt::{Debug, Formatter},
   hash::{BuildHasher, Hash},
   hint::unreachable_unchecked,
+  num::NonZeroUsize,
   rc::{Rc, Weak},
 };
 
@@ -120,31 +121,21 @@ where
 
 trait Poollike<T, U> {}
 
-#[derive(
-  Debug,
-  Clone,
-  PartialEq,
-  Eq,
-  PartialOrd,
-  Ord,
-  Serialize,
-  Deserialize,
-  Default
-)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Handle {
+  pub index: NonZeroUsize,
   pub rc: Option<Rc<()>>,
-  pub index: usize,
 }
 
 impl Handle {
-  pub fn new(index: usize) -> Self {
+  pub fn new(index: NonZeroUsize) -> Self {
     Self {
       index,
       rc: Some(Rc::default()),
     }
   }
 
-  pub fn new_pair(index: usize) -> (Self, Weak<()>) {
+  pub fn new_pair(index: NonZeroUsize) -> (Self, Weak<()>) {
     let rc = Rc::default();
     let weak = Rc::downgrade(&rc);
     (
@@ -313,12 +304,13 @@ macro_rules! make_refcounted_pool {
     paste::paste! {
       mod [<$struct_name:snake _impl>] {
         use std::rc::Weak;
+        use std::num::NonZeroUsize;
 
         use $crate::deps::serde::{Deserialize, Serialize};
 
         use super::$object_name as Obj;
 
-        #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Default)]
+        #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
         #[derive(Serialize, Deserialize)]
         #[serde(transparent)]
         pub struct $struct_name($crate::pool::Handle);
@@ -330,16 +322,42 @@ macro_rules! make_refcounted_pool {
         }
 
         #[derive(Clone, Debug, Hash)]
-        #[derive(Serialize, Deserialize)]
         pub struct $pool_name {
           next_index: usize,
           pool: $crate::pool::Pool<Obj>,
         }
 
+
+        impl Serialize for $pool_name
+        {
+          fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+          where
+            S: serde::Serializer,
+          {
+            let mut pool = self.pool.clone();
+            pool.collect_garbage();
+            pool.serialize(serializer)
+          }
+        }
+
+        impl<'de> Deserialize<'de> for $pool_name
+        where
+        {
+          fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+          where
+            D: serde::Deserializer<'de>,
+          {
+            let pool = $crate::pool::Pool::<Obj>::deserialize(deserializer)?;
+            let next_index = pool.map.keys().max().copied().unwrap_or(1);
+
+            Ok(Self { next_index, pool })
+          }
+        }
+
         impl $pool_name {
           pub fn new() -> Self {
             Self {
-              next_index: 0,
+              next_index: 1,
               pool: $crate::pool::Pool::new(),
             }
           }
@@ -350,9 +368,15 @@ macro_rules! make_refcounted_pool {
             index
           }
 
-          pub fn insert(&mut self, object: Obj) -> $struct_name {
+          fn get_next_handle(&mut self) -> ($crate::pool::Handle, Weak<()>) {
             let index = self.next_index();
-            let (handle, weak) = $crate::pool::Handle::new_pair(index);
+            // SAFETY: Index starts at 1
+            $crate::pool::Handle::new_pair(unsafe { NonZeroUsize::new_unchecked(index) })
+          }
+
+          pub fn insert(&mut self, object: Obj) -> $struct_name {
+            let (handle, weak) = self.get_next_handle();
+            let index = handle.index.get();
             self
               .pool
               .map
@@ -365,50 +389,24 @@ macro_rules! make_refcounted_pool {
           }
 
 
-          pub fn reinsert(&mut self, $struct_name(handle): &$struct_name) -> Option<$struct_name> {
-            let index = handle.index;
-            let new_handle_index = self.next_index();
+          pub fn reinsert(&mut self, $struct_name(original_handle): &$struct_name) -> Option<$struct_name> {
+            let original_index = original_handle.index.get();
+            let (new_handle, rc) = self.get_next_handle();
+            let new_handle_index = new_handle.index.get();
             if let Some(current_entry) = self
               .pool
               .map
-              .get_mut(&handle.index)
-              .filter(|entry| Weak::as_ptr(entry.get_rc()) == handle.as_ptr())
+              .get_mut(&original_handle.index.get())
+              .filter(|entry| Weak::as_ptr(entry.get_rc()) == original_handle.as_ptr())
             {
-              match current_entry {
-                $crate::pool::Entry::Virtual { .. } => {
-                  let (handle, weak) = $crate::pool::Handle::new_pair(new_handle_index);
-                  let (value, index) = current_entry.share(index);
-                  let inserted = $crate::pool::Entry::Virtual {
-                    value: Some(value.clone()),
-                    rc: weak,
-                    real_index: index,
-                  };
-                  self.pool.map.insert(new_handle_index, inserted);
-                  Some($struct_name(handle))
-                }
-                $crate::pool::Entry::Shared { .. } => {
-                  let (handle, weak) = $crate::pool::Handle::new_pair(new_handle_index);
-                  let (value, index) = current_entry.share(index);
-                  let inserted = $crate::pool::Entry::Virtual {
-                    value: Some(value.clone()),
-                    rc: weak,
-                    real_index: index,
-                  };
-                  self.pool.map.insert(new_handle_index, inserted);
-                  Some($struct_name(handle))
-                }
-                $crate::pool::Entry::Owned { .. } => {
-                  let (handle, weak) = $crate::pool::Handle::new_pair(new_handle_index);
-                  let (value, index) = current_entry.share(index);
-                  let inserted = $crate::pool::Entry::Virtual {
-                    value: Some(value.clone()),
-                    rc: weak,
-                    real_index: index,
-                  };
-                  self.pool.map.insert(new_handle_index, inserted);
-                  Some($struct_name(handle))
-                }
-              }
+              let (value, real_index) = current_entry.share(original_index);
+              let inserted = $crate::pool::Entry::Virtual {
+                value: Some(value.clone()),
+                rc,
+                real_index,
+              };
+              self.pool.map.insert(new_handle_index, inserted);
+              Some($struct_name(new_handle))
             } else {
               None
             }
@@ -416,14 +414,14 @@ macro_rules! make_refcounted_pool {
 
           pub fn get(&self, $struct_name(handle): &$struct_name) -> Option<&Obj> {
             self.pool.map
-              .get(&handle.index)
+              .get(&handle.index.get())
               .filter(|entry| Weak::as_ptr(entry.get_rc()) == handle.as_ptr())
               .map(|entry| entry.get())
           }
 
           pub fn get_mut(&mut self, $struct_name(handle): &$struct_name) -> Option<&mut Obj> {
             self.pool.map
-              .get_mut(&handle.index)
+              .get_mut(&handle.index.get())
               .filter(|entry| Weak::as_ptr(entry.get_rc()) == handle.as_ptr())
               .map(|entry| {
                 entry.promote();
@@ -432,11 +430,11 @@ macro_rules! make_refcounted_pool {
           }
 
           pub fn remove(&mut self, $struct_name(handle): &$struct_name) {
-            self.pool.map.remove(&handle.index);
+            self.pool.map.remove(&handle.index.get());
           }
 
           pub fn reassociate(&mut self, $struct_name(handle): &mut $struct_name) -> bool {
-            if let Some(inserted) = self.pool.map.get(&handle.index) {
+            if let Some(inserted) = self.pool.map.get(&handle.index.get()) {
               if let Some(rc) = Weak::upgrade(inserted.get_rc()) {
                 handle.rc = Some(rc);
                 return true;
@@ -482,7 +480,8 @@ macro_rules! make_refcounted_pool {
           pub fn iter_weak(&self) -> impl Iterator<Item = ($struct_name, &Obj)> {
             self.pool.map.iter().map(|(k, v)| {
               ($struct_name($crate::pool::Handle {
-                index: *k,
+                // SAFETY: Indexing starts at 1
+                index: unsafe { NonZeroUsize::new_unchecked(*k) },
                 rc: None,
               }), v.get())
             })
@@ -526,6 +525,11 @@ mod tests {
   fn test_sizeof() {
     assert_eq!(
       std::mem::size_of::<FooHandle>(),
+      std::mem::size_of::<usize>() * 2
+    );
+
+    assert_eq!(
+      std::mem::size_of::<Option<FooHandle>>(),
       std::mem::size_of::<usize>() * 2
     );
 
@@ -596,30 +600,26 @@ mod tests {
     // The mutation and new value are only visible in layer 2:
     assert_yaml_snapshot!((&layer1, &layer2), @r###"
     ---
-    - next_index: 2
-      pool:
-        0:
-          type: Owned
-          value:
-            name: one
-        1:
-          type: Owned
-          value:
-            name: TWO
-    - next_index: 3
-      pool:
-        0:
-          type: Owned
-          value:
-            name: _one_
-        1:
-          type: Owned
-          value:
-            name: TWO
-        2:
-          type: Owned
-          value:
-            name: "3"
+    - 1:
+        type: Owned
+        value:
+          name: one
+      2:
+        type: Owned
+        value:
+          name: TWO
+    - 1:
+        type: Owned
+        value:
+          name: _one_
+      2:
+        type: Owned
+        value:
+          name: TWO
+      3:
+        type: Owned
+        value:
+          name: "3"
     "###);
 
     // Dropping the handle allows garbage collection to proceed in any layer:
@@ -630,22 +630,18 @@ mod tests {
     assert_eq!((layer1.len(), layer2.len()), (2, 3));
     assert_yaml_snapshot!((&layer1, &layer2), @r###"
     ---
-    - next_index: 2
-      pool:
-        1:
-          type: Owned
-          value:
-            name: TWO
-    - next_index: 3
-      pool:
-        1:
-          type: Owned
-          value:
-            name: TWO
-        2:
-          type: Owned
-          value:
-            name: "3"
+    - 2:
+        type: Owned
+        value:
+          name: TWO
+    - 2:
+        type: Owned
+        value:
+          name: TWO
+      3:
+        type: Owned
+        value:
+          name: "3"
     "###);
 
     // Garbage collecting a layer removes values with no handles.
@@ -654,22 +650,18 @@ mod tests {
     // However that only affects the one layer:
     assert_yaml_snapshot!((&layer1, &layer2), @r###"
     ---
-    - next_index: 2
-      pool:
-        1:
-          type: Owned
-          value:
-            name: TWO
-    - next_index: 3
-      pool:
-        1:
-          type: Owned
-          value:
-            name: TWO
-        2:
-          type: Owned
-          value:
-            name: "3"
+    - 2:
+        type: Owned
+        value:
+          name: TWO
+    - 2:
+        type: Owned
+        value:
+          name: TWO
+      3:
+        type: Owned
+        value:
+          name: "3"
     "###);
 
     // Dropping handle_two won't do anything yet because we have a clone of it, the
@@ -681,22 +673,18 @@ mod tests {
     assert_eq!((layer1.len(), layer2.len()), (1, 2));
     assert_yaml_snapshot!((&layer1, &layer2), @r###"
     ---
-    - next_index: 2
-      pool:
-        1:
-          type: Owned
-          value:
-            name: TWO
-    - next_index: 3
-      pool:
-        1:
-          type: Owned
-          value:
-            name: TWO
-        2:
-          type: Owned
-          value:
-            name: "3"
+    - 2:
+        type: Owned
+        value:
+          name: TWO
+    - 2:
+        type: Owned
+        value:
+          name: TWO
+      3:
+        type: Owned
+        value:
+          name: "3"
     "###);
 
     // Finally, we drop all the remaining handles and clean up:
@@ -707,10 +695,8 @@ mod tests {
 
     assert_yaml_snapshot!((&layer1, &layer2), @r###"
     ---
-    - next_index: 2
-      pool: {}
-    - next_index: 3
-      pool: {}
+    - {}
+    - {}
     "###);
   }
 
@@ -767,12 +753,10 @@ mod tests {
     let handle_one = pool1.insert(make_obj("one"));
     assert_yaml_snapshot!((&pool1), @r###"
     ---
-    next_index: 1
-    pool:
-      0:
-        type: Owned
-        value:
-          name: one
+    1:
+      type: Owned
+      value:
+        name: one
     "###);
 
     let handle_one_cow = pool1.reinsert(&handle_one).unwrap();
@@ -790,18 +774,16 @@ mod tests {
 
     assert_yaml_snapshot!((&pool1), @r###"
     ---
-    next_index: 3
-    pool:
-      0:
-        type: Shared
-        value:
-          name: one
-      1:
-        type: Virtual
-        real_index: 0
-      2:
-        type: Virtual
-        real_index: 0
+    1:
+      type: Shared
+      value:
+        name: one
+    2:
+      type: Virtual
+      real_index: 1
+    3:
+      type: Virtual
+      real_index: 1
     "###);
 
     let mut obj_two = pool1.get_mut(&handle_one_cow).unwrap();
@@ -811,20 +793,18 @@ mod tests {
 
     assert_yaml_snapshot!((&pool1), @r###"
     ---
-    next_index: 3
-    pool:
-      0:
-        type: Shared
-        value:
-          name: one
-      1:
-        type: Shared
-        value:
-          name: TWO
-      2:
-        type: Shared
-        value:
-          name: tres
+    1:
+      type: Shared
+      value:
+        name: one
+    2:
+      type: Shared
+      value:
+        name: TWO
+    3:
+      type: Shared
+      value:
+        name: tres
     "###);
   }
 }
