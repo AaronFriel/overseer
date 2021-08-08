@@ -872,7 +872,7 @@ mod tests {
     let handle_one = pool.insert(make_obj("1".to_string()));
     let generated_handle_less_than_first = (2..=256)
       .into_iter()
-      .map(|i| pool.reinsert(&handle_one).unwrap())
+      .map(|_| pool.reinsert(&handle_one).unwrap())
       .any(|handle| handle < handle_one);
 
     assert!(generated_handle_less_than_first);
