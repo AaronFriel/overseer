@@ -10,7 +10,7 @@ use overseer_substrate_core::game::{
 fn zone_repr() {
   assert_yaml_snapshot!(Zone::<Battlefield>::new(), @r###"
   ---
-  cards: []
+  objects: []
   count: 0
   "###);
 }
@@ -33,13 +33,13 @@ fn player_repr() {
   deck: []
   sideboard: []
   library:
-    cards: []
+    objects: []
     count: 0
   hand:
-    cards: []
+    objects: []
     count: 0
   graveyard:
-    cards: []
+    objects: []
     count: 0
   revealed: []
   life: 20
@@ -62,7 +62,7 @@ fn player_handle_repr() {
 fn game_repr() {
   let mut game: Game = Game::new(vec![], vec![named_player("First"), named_player("Second")]);
 
-  let handle = game.objects.insert(Object {
+  let handle = game.objects.insert_monotonic(Object {
     kind: ObjectKind::Card,
     characteristics: None,
     card: None,
@@ -85,14 +85,14 @@ fn game_repr() {
       deck: []
       sideboard: []
       library:
-        cards: []
+        objects: []
         count: 0
       hand:
-        cards:
-          - 1
+        objects:
+          - 00000000-0000-0000-0000-000000000001
         count: 1
       graveyard:
-        cards: []
+        objects: []
         count: 0
       revealed: []
       life: 20
@@ -104,22 +104,22 @@ fn game_repr() {
       deck: []
       sideboard: []
       library:
-        cards: []
+        objects: []
         count: 0
       hand:
-        cards: []
+        objects: []
         count: 0
       graveyard:
-        cards: []
+        objects: []
         count: 0
       revealed: []
       life: 20
       has_left_game: false
       has_lost_game: false
   objects:
-    next_index: 2
-    map:
-      1:
+    00000000-0000-0000-0000-000000000001:
+      type: Owned
+      value:
         kind: Card
         characteristics: ~
         card: ~
@@ -127,20 +127,21 @@ fn game_repr() {
         owner: ~
         controller: ~
   active_player: 1
+  current_player: ~
   log: []
   current_decision: 0
   decisions: []
   battlefield:
-    cards: []
+    objects: []
     count: 0
   stack:
-    cards: []
+    objects: []
     count: 0
   exile:
-    cards: []
+    objects: []
     count: 0
   command:
-    cards: []
+    objects: []
     count: 0
   "###);
 }
@@ -148,7 +149,7 @@ fn game_repr() {
 #[test]
 fn game_view_as_repr() {
   let mut game: Game = Game::new(vec![], vec![named_player("First"), named_player("Second")]);
-  let handle = game.objects.insert(Object {
+  let handle = game.objects.insert_monotonic(Object {
     kind: ObjectKind::Card,
     characteristics: None,
     card: None,
@@ -161,7 +162,7 @@ fn game_view_as_repr() {
 
   first_player.hand.insert(handle);
 
-  let second_player_handle = game.get_player_handles().skip(1).next().unwrap();
+  let second_player_handle = game.get_players().skip(1).next().unwrap();
 
   assert_yaml_snapshot!(game.view_as_player(second_player_handle), @r###"
   ---
@@ -173,13 +174,13 @@ fn game_view_as_repr() {
       deck: []
       sideboard: []
       library:
-        cards: []
+        objects: []
         count: 0
       hand:
-        cards: []
+        objects: []
         count: 1
       graveyard:
-        cards: []
+        objects: []
         count: 0
       revealed: []
       life: 20
@@ -191,36 +192,35 @@ fn game_view_as_repr() {
       deck: []
       sideboard: []
       library:
-        cards: []
+        objects: []
         count: 0
       hand:
-        cards: []
+        objects: []
         count: 0
       graveyard:
-        cards: []
+        objects: []
         count: 0
       revealed: []
       life: 20
       has_left_game: false
       has_lost_game: false
-  objects:
-    next_index: 2
-    map: {}
+  objects: {}
   active_player: 1
+  current_player: 2
   log: []
   current_decision: 0
   decisions: []
   battlefield:
-    cards: []
+    objects: []
     count: 0
   stack:
-    cards: []
+    objects: []
     count: 0
   exile:
-    cards: []
+    objects: []
     count: 0
   command:
-    cards: []
+    objects: []
     count: 0
   "###);
 }

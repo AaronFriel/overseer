@@ -31,6 +31,10 @@ macro_rules! make_refcounted_pool {
           pub fn is_weak(&self) -> bool {
             self.0.is_weak()
           }
+
+          pub fn as_uuid(&self) -> $crate::deps::uuid::Uuid {
+            self.0.get_index()
+          }
         }
 
         #[derive(Clone, Debug, Hash)]
@@ -53,25 +57,34 @@ macro_rules! make_refcounted_pool {
             }
           }
 
-          #[cfg(test)]
-          fn next_index(&mut self) -> u128 {
-            (self.len() + 1) as u128
+
+          fn next_index_monotonic(&mut self) -> NonZeroU128 {
+            let mut index = (self.len() + 1) as u128;
+
+            while (self.pool.map.contains_key(&$crate::deps::uuid::Uuid::from_u128(index))) {
+              index += 1;
+            }
+
+            unsafe { NonZeroU128::new_unchecked((self.len() + 1) as u128) }
           }
 
-          #[cfg(not(test))]
-          fn next_index(&mut self) -> u128 {
+          fn next_index(&mut self) -> NonZeroU128 {
             let index = $crate::deps::uuid::Uuid::new_v4();
-            index.as_u128()
-          }
-
-          fn get_next_handle(&mut self) -> ($crate::pool::Handle, Weak<()>) {
-            let index = self.next_index();
-            // SAFETY: Index starts at 1
-            $crate::pool::Handle::new_pair(unsafe { NonZeroU128::new_unchecked(index) })
+            unsafe { NonZeroU128::new_unchecked(index.as_u128()) }
           }
 
           pub fn insert(&mut self, object: Obj) -> $struct_name {
-            let (handle, weak) = self.get_next_handle();
+            let index = self.next_index();
+            self.insert_with_index(object, index)
+          }
+
+          pub fn insert_monotonic(&mut self, object: Obj) -> $struct_name {
+            let index = self.next_index_monotonic();
+            self.insert_with_index(object, index)
+          }
+
+          fn insert_with_index(&mut self, object: Obj, index: NonZeroU128) -> $struct_name {
+            let (handle, weak) = $crate::pool::Handle::new_pair(index);
             let index = handle.get_index();
             self
               .pool
@@ -84,11 +97,20 @@ macro_rules! make_refcounted_pool {
             $struct_name(handle)
           }
 
+          pub fn reinsert(&mut self, handle: &$struct_name) -> Option<$struct_name> {
+            let new_index = self.next_index();
+            self.reinsert_with_index(handle, new_index)
+          }
 
-          pub fn reinsert(&mut self, $struct_name(original_handle): &$struct_name) -> Option<$struct_name> {
+          pub fn reinsert_monotonic(&mut self, handle: &$struct_name) -> Option<$struct_name> {
+            let new_index = self.next_index_monotonic();
+            self.reinsert_with_index(handle, new_index)
+          }
+
+          fn reinsert_with_index(&mut self, $struct_name(original_handle): &$struct_name, new_index: NonZeroU128) -> Option<$struct_name> {
             let original_index = original_handle.get_index();
-            let (new_handle, rc) = self.get_next_handle();
-            let new_handle_index = new_handle.get_index();
+            let (new_handle, rc) = $crate::pool::Handle::new_pair(new_index);
+            let new_index = new_handle.get_index();
             if let Some(current_entry) = self
               .pool
               .map
@@ -101,7 +123,7 @@ macro_rules! make_refcounted_pool {
                 rc,
                 real_index,
               };
-              self.pool.map.insert(new_handle_index, inserted);
+              self.pool.map.insert(new_index, inserted);
               Some($struct_name(new_handle))
             } else {
               None
@@ -224,7 +246,7 @@ mod tests {
     let obj_one = FooObject {
       name: Cow::Borrowed("one"),
     };
-    let handle_one = layer1.insert(obj_one);
+    let handle_one = layer1.insert_monotonic(obj_one);
 
     assert_eq!(
       layer1.get(&handle_one),
@@ -241,7 +263,7 @@ mod tests {
     let obj_one = FooObject {
       name: Cow::Borrowed("one"),
     };
-    let handle_one = layer1.insert(obj_one);
+    let handle_one = layer1.insert_monotonic(obj_one);
 
     {
       let mut obj_two = layer1.get_mut(&handle_one.clone()).unwrap();
@@ -267,12 +289,12 @@ mod tests {
     let make_obj = |s: &'static str| FooObject {
       name: Cow::Borrowed(s),
     };
-    let handle_one = layer1.insert(make_obj("one")); // We will drop this handle first.
-    let handle_two = layer1.insert(make_obj("TWO")); // We will drop this second.
+    let handle_one = layer1.insert_monotonic(make_obj("one")); // We will drop this handle first.
+    let handle_two = layer1.insert_monotonic(make_obj("TWO")); // We will drop this second.
 
     let mut layer2 = layer1.clone();
     layer2.get_mut(&handle_one).unwrap().name = Cow::Borrowed("_one_");
-    let handle_three = layer2.insert(make_obj("3")); // We'll hold on to this until the end
+    let handle_three = layer2.insert_monotonic(make_obj("3")); // We'll hold on to this until the end
     let handle_two_clone = handle_two.clone(); // This will keep the reference to object TWO alive to the end.
 
     // The mutation and new value are only visible in layer 2:
@@ -386,10 +408,10 @@ mod tests {
       name: Cow::Borrowed(s),
     };
     let mut pool1 = FooPool::new();
-    let handle_one = pool1.insert(make_obj("one"));
+    let handle_one = pool1.insert_monotonic(make_obj("one"));
 
     let mut layer1 = FooPool::new();
-    let handle_two = layer1.insert(make_obj("TWO"));
+    let handle_two = layer1.insert_monotonic(make_obj("TWO"));
 
     // Handles must be from the pool they were created from.
     assert_eq!(pool1.get(&handle_two), None);
@@ -397,8 +419,8 @@ mod tests {
 
     let mut layer2 = layer1.clone();
 
-    let layer1_handle = layer1.insert(make_obj("3"));
-    let layer2_handle = layer2.insert(make_obj("3"));
+    let layer1_handle = layer1.insert_monotonic(make_obj("3"));
+    let layer2_handle = layer2.insert_monotonic(make_obj("3"));
 
     // This applies to querying handles created in a prior layer after it was
     // cloned:
@@ -424,7 +446,7 @@ mod tests {
       name: Cow::Borrowed(s),
     };
     let mut pool1 = FooPool::new();
-    let handle_one = pool1.insert(make_obj("one"));
+    let handle_one = pool1.insert_monotonic(make_obj("one"));
     assert_yaml_snapshot!((&pool1), @r###"
     ---
     00000000-0000-0000-0000-000000000001:
@@ -433,12 +455,12 @@ mod tests {
         name: one
     "###);
 
-    let handle_one_cow = pool1.reinsert(&handle_one).unwrap();
-    let handle_one_cow_2 = pool1.reinsert(&handle_one_cow).unwrap();
+    let handle_one_cow = pool1.reinsert_monotonic(&handle_one).unwrap();
+    let handle_one_cow_2 = pool1.reinsert_monotonic(&handle_one_cow).unwrap();
 
     let mut layer1 = FooPool::new();
-    let handle_two = layer1.insert(make_obj("TWO"));
-    let handle_two_cow = layer1.reinsert(&handle_two).unwrap();
+    let handle_two = layer1.insert_monotonic(make_obj("TWO"));
+    let handle_two_cow = layer1.reinsert_monotonic(&handle_two).unwrap();
 
     assert_eq!(pool1.get(&handle_two_cow), None);
     assert_eq!(layer1.get(&handle_one_cow), None);
@@ -514,7 +536,7 @@ mod tests {
       name: Cow::Borrowed(s),
     };
     let mut pool = FooPool::new();
-    let mut handle_one = pool.insert(make_obj("one"));
+    let mut handle_one = pool.insert_monotonic(make_obj("one"));
 
     assert_yaml_snapshot!(pool, @r###"
     ---
@@ -548,8 +570,8 @@ mod tests {
       name: Cow::Borrowed(s),
     };
     let mut pool = FooPool::new();
-    let mut handle_one = pool.insert(make_obj("one"));
-    let mut handle_two = pool.reinsert(&handle_one).unwrap();
+    let mut handle_one = pool.insert_monotonic(make_obj("one"));
+    let mut handle_two = pool.reinsert_monotonic(&handle_one).unwrap();
 
     let pool_clone = serde_clone(&pool).reassociate([&mut handle_one]);
     // Only the second handle was reassociated, and it became shared
@@ -578,8 +600,8 @@ mod tests {
       name: Cow::Borrowed(s),
     };
     let mut pool = FooPool::new();
-    let handle_one = pool.insert(make_obj("one"));
-    let handle_two = pool.reinsert(&handle_one).unwrap();
+    let handle_one = pool.insert_monotonic(make_obj("one"));
+    let handle_two = pool.reinsert_monotonic(&handle_one).unwrap();
 
     assert_yaml_snapshot!(pool, @r###"
     ---
@@ -613,7 +635,7 @@ mod tests {
       name: Cow::Borrowed(s),
     };
     let mut pool = FooPool::new();
-    let handle_one = pool.insert(make_obj("one"));
+    let handle_one = pool.insert_monotonic(make_obj("one"));
     let handle_one_weak = handle_one.weak_clone();
 
     pool.collect_garbage(); // No-op, handle_one still live
@@ -641,7 +663,7 @@ mod tests {
       name: Cow::Borrowed(s),
     };
     let mut pool = FooPool::new();
-    let handle_one = pool.insert(make_obj("one"));
+    let handle_one = pool.insert_monotonic(make_obj("one"));
 
     let mut layer = pool.clone();
     layer.remove(&handle_one);
@@ -664,8 +686,8 @@ mod tests {
       name: Cow::Borrowed(s),
     };
     let mut pool = FooPool::new();
-    let handle_one = pool.insert(make_obj("one"));
-    let handle_two = pool.reinsert(&handle_one).unwrap();
+    let handle_one = pool.insert_monotonic(make_obj("one"));
+    let handle_two = pool.reinsert_monotonic(&handle_one).unwrap();
 
     let mut layer = pool.clone();
     layer.remove(&handle_one);
@@ -708,8 +730,8 @@ mod tests {
       name: Cow::Borrowed(s),
     };
     let mut pool = FooPool::new();
-    let handle_one = pool.insert(make_obj("one"));
-    pool.reinsert(&handle_one).unwrap();
+    let handle_one = pool.insert_monotonic(make_obj("one"));
+    pool.reinsert_monotonic(&handle_one).unwrap();
 
     let collected: Vec<_> = pool.iter_ids().collect();
     assert_yaml_snapshot!(collected, @r###"
@@ -727,8 +749,8 @@ mod tests {
       name: Cow::Borrowed(s),
     };
     let mut pool = FooPool::new();
-    let handle_one = pool.insert(make_obj("one"));
-    pool.reinsert(&handle_one).unwrap();
+    let handle_one = pool.insert_monotonic(make_obj("one"));
+    pool.reinsert_monotonic(&handle_one).unwrap();
 
     let collected: Vec<_> = pool.as_weak_iter().collect();
     // Because the rc is skipped, the serialization format is the same as iter_ids()
@@ -757,8 +779,8 @@ mod tests {
       name: Cow::Borrowed(s),
     };
     let mut pool = FooPool::new();
-    let handle_one = pool.insert(make_obj("one"));
-    pool.reinsert(&handle_one).unwrap();
+    let handle_one = pool.insert_monotonic(make_obj("one"));
+    pool.reinsert_monotonic(&handle_one).unwrap();
 
     let std_hashmap = pool.into_hashmap();
 
@@ -780,7 +802,7 @@ mod tests {
       name: Cow::Borrowed(s),
     };
     let mut pool = FooPool::new();
-    let handle_one = pool.insert(make_obj("one"));
+    let handle_one = pool.insert_monotonic(make_obj("one"));
     let mut handle_one_weak = handle_one.weak_clone();
 
     std::mem::drop(handle_one); // Entry is now disassociated, but we can recover
@@ -819,5 +841,56 @@ mod tests {
       value:
         name: one
     "###);
+  }
+
+  #[test]
+  fn insert_non_monotonic() {
+    let make_obj = |s: String| FooObject {
+      name: Cow::Owned(s),
+    };
+    let mut pool = FooPool::new();
+
+    let handle_one = pool.insert(make_obj("1".to_string()));
+    let generated_handle_less_than_first = (2..=256)
+      .into_iter()
+      .map(|i| pool.insert(make_obj(i.to_string())))
+      .any(|handle| handle < handle_one);
+
+    assert!(generated_handle_less_than_first);
+
+    // This test is technically nondeterministic, but the odds of not generating
+    // a UUID less than the initial are improbable.
+  }
+
+  #[test]
+  fn reinsert_non_monotonic() {
+    let make_obj = |s: String| FooObject {
+      name: Cow::Owned(s),
+    };
+    let mut pool = FooPool::new();
+
+    let handle_one = pool.insert(make_obj("1".to_string()));
+    let generated_handle_less_than_first = (2..=256)
+      .into_iter()
+      .map(|i| pool.reinsert(&handle_one).unwrap())
+      .any(|handle| handle < handle_one);
+
+    assert!(generated_handle_less_than_first);
+
+    // This test is technically nondeterministic, but the odds of not generating
+    // a UUID less than the initial are improbable.
+  }
+
+  #[test]
+  fn insert_monotonic() {
+    let make_obj = |s: String| FooObject {
+      name: Cow::Owned(s),
+    };
+    let mut pool = FooPool::new();
+
+    for i in 1..=256 {
+      let handle = pool.insert_monotonic(make_obj(i.to_string()));
+      assert_eq!(handle.as_uuid().as_u128(), i);
+    }
   }
 }
