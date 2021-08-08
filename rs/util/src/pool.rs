@@ -2,22 +2,56 @@ use std::{
   fmt::{Debug, Formatter},
   hash::{BuildHasher, Hash},
   hint::unreachable_unchecked,
-  num::NonZeroUsize,
+  num::NonZeroU128,
   rc::{Rc, Weak},
 };
 
 use im::HashMap;
 use serde::{ser::Serializer, Deserialize, Deserializer, Serialize};
+use uuid::Uuid;
 use Entry::*;
 
 #[cfg(test)]
-type DefaultHasher = nohash_hasher::BuildNoHashHasher<u64>;
+type DefaultHasher = std::hash::BuildHasherDefault<hashers::null::PassThroughHasher>;
 #[cfg(not(test))]
 type DefaultHasher = std::collections::hash_map::RandomState;
 
 #[derive(Clone)]
 pub struct Pool<T, S = DefaultHasher> {
-  pub map: HashMap<usize, Entry<T>, S>,
+  pub map: HashMap<Uuid, Entry<T>, S>,
+}
+
+pub struct DisassociatedPool<T, S = DefaultHasher> {
+  pub map: HashMap<Uuid, Entry<T>, S>,
+  pub handles: std::collections::HashMap<Uuid, Handle>,
+}
+
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub struct NonZeroUuid(pub NonZeroU128);
+
+impl Serialize for NonZeroUuid {
+  fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+  where
+    S: Serializer,
+  {
+    Uuid::from_u128(self.0.get()).serialize(serializer)
+  }
+}
+
+impl<'de> Deserialize<'de> for NonZeroUuid {
+  fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+  where
+    D: Deserializer<'de>,
+  {
+    if let Some(value) = NonZeroU128::new(Uuid::deserialize(deserializer)?.as_u128()) {
+      Ok(NonZeroUuid(value))
+    } else {
+      Err(serde::de::Error::invalid_value(
+        serde::de::Unexpected::Unsigned(0),
+        &"non-zero value",
+      ))
+    }
+  }
 }
 
 impl<T, S> Debug for Pool<T, S>
@@ -46,7 +80,7 @@ where
 {
   pub fn new() -> Self {
     Self {
-      map: HashMap::default(),
+      map: Default::default(),
     }
   }
 
@@ -57,7 +91,7 @@ where
       }
     }
     let key_ref = self.map.clone();
-    let mut deduplicated_keys = std::collections::HashMap::<usize, usize>::new();
+    let mut deduplicated_keys = std::collections::HashMap::<Uuid, Uuid>::new();
     for (k, entry) in self.map.iter_mut() {
       match entry {
         Virtual { mut real_index, .. }
@@ -77,16 +111,38 @@ where
     }
   }
 
-  pub fn iter(&self) -> impl Iterator<Item = (usize, &T)> {
+  pub fn iter(&self) -> impl Iterator<Item = (Uuid, &T)> {
     self.map.iter().map(|(k, v)| (*k, v.get()))
   }
 
-  pub fn into_hashmap(&self) -> std::collections::HashMap<usize, &T> {
+  pub fn into_hashmap(&self) -> std::collections::HashMap<Uuid, &T> {
     self.map.iter().map(|(k, v)| (*k, v.get())).collect()
   }
 
   pub fn len(&self) -> usize {
-    self.map.keys().len()
+    self.map.len()
+  }
+}
+
+impl<T> DisassociatedPool<T>
+where
+  T: Clone,
+{
+  pub fn reassociate<'a>(self, handles: impl Iterator<Item = &'a mut Handle>) -> Pool<T> {
+    for h in handles {
+      let index = h.get_index();
+
+      if let Some(other) = self.handles.get(&index) {
+        h.rc = other.rc.clone();
+      } else {
+        // TODO: this should be an error
+      }
+    }
+    std::mem::drop(self.handles);
+
+    let mut pool = Pool { map: self.map };
+    pool.collect_garbage();
+    pool
   }
 }
 
@@ -104,7 +160,7 @@ where
   }
 }
 
-impl<'de, T, S> Deserialize<'de> for Pool<T, S>
+impl<'de, T, S> Deserialize<'de> for DisassociatedPool<T, S>
 where
   T: Deserialize<'de> + Clone,
   S: BuildHasher + Default,
@@ -113,34 +169,75 @@ where
   where
     D: Deserializer<'de>,
   {
-    let map = HashMap::<usize, Entry<T>, S>::deserialize(deserializer)?;
+    let mut map = HashMap::<Uuid, Entry<T>, S>::deserialize(deserializer)?;
+    let mut unassociated_handles: std::collections::HashMap<Uuid, Handle> = Default::default();
 
-    Ok(Self { map })
+    let cloned_map = map.clone();
+
+    for (k, v) in map.iter_mut() {
+      match v {
+        Virtual {
+          real_index,
+          value: virtual_value,
+          ..
+        } => {
+          // Safety: real_index must invariably point at a live value:
+          let real_entry = cloned_map.get(real_index).unwrap();
+          match real_entry {
+            Shared {
+              value: real_value, ..
+            } => {
+              // Our iterator reached the virtual before the shared, we don't need to create a
+              // handle for both, but we do need to link the values.
+              *virtual_value = Some(real_value.clone());
+            }
+            _ => unreachable!(),
+          }
+        }
+        _ => {}
+      }
+
+      let rc = v.get_rc_mut();
+      let (handle, weak) = Handle::new_pair(unsafe { NonZeroU128::new_unchecked(k.as_u128()) });
+      unassociated_handles.insert(*k, handle);
+      *rc = weak;
+    }
+
+    Ok(Self {
+      map,
+      handles: unassociated_handles,
+    })
   }
 }
 
 trait Poollike<T, U> {}
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct Handle {
-  pub index: NonZeroUsize,
+  pub index: NonZeroUuid,
+  #[serde(skip)]
   pub rc: Option<Rc<()>>,
 }
 
 impl Handle {
-  pub fn new(index: NonZeroUsize) -> Self {
+  pub fn new(index: NonZeroU128) -> Self {
     Self {
-      index,
+      index: NonZeroUuid(index),
       rc: Some(Rc::default()),
     }
   }
 
-  pub fn new_pair(index: NonZeroUsize) -> (Self, Weak<()>) {
+  pub fn get_index(&self) -> Uuid {
+    Uuid::from_u128(self.index.0.get())
+  }
+
+  pub fn new_pair(index: NonZeroU128) -> (Self, Weak<()>) {
     let rc = Rc::default();
     let weak = Rc::downgrade(&rc);
     (
       Self {
-        index,
+        index: NonZeroUuid(index),
         rc: Some(rc),
       },
       weak,
@@ -176,7 +273,7 @@ const fn const_none<T>() -> Option<T> {
 #[serde(tag = "type")]
 pub enum Entry<T> {
   Virtual {
-    real_index: usize,
+    real_index: Uuid,
     /// Reference counted shared access to the underlying data.
     ///
     ///  We will never actually store a None here except during serde.
@@ -200,16 +297,21 @@ pub enum Entry<T> {
 impl<T> Entry<T> {
   pub fn promote(&mut self) {
     use Entry::*;
-    if self.is_virtual() {
-      take_mut::take(self, |this| match this {
-        Virtual { value, rc, .. } => Shared {
-          /// SAFETY: Never a None stored.
-          value: value.unwrap(),
-          rc,
-        },
-        otherwise => otherwise,
-      });
-    }
+    take_mut::take(self, |this| match this {
+      Virtual { value, rc, .. } => {
+        // SAFETY: Never a none stored.
+        let value = value.unwrap();
+        match Rc::try_unwrap(value) {
+          Ok(value) => Owned { value, rc },
+          Err(value) => Shared { value, rc },
+        }
+      }
+      Shared { value, rc } => match Rc::try_unwrap(value) {
+        Ok(value) => Owned { value, rc },
+        Err(value) => Shared { value, rc },
+      },
+      otherwise => otherwise,
+    });
   }
 
   /// Returns `true` if the entry is [`Virtual`].
@@ -221,7 +323,21 @@ impl<T> Entry<T> {
 impl<T> Entry<T> {
   pub fn get_rc(&self) -> &Weak<()> {
     match self {
-      Virtual { rc, .. } | Shared { rc, .. } | Owned { rc, .. } => &rc,
+      Virtual { rc, .. } | Shared { rc, .. } | Owned { rc, .. } => rc,
+    }
+  }
+
+  pub fn get_rc_mut(&mut self) -> &mut Weak<()> {
+    match self {
+      Virtual { rc, .. } | Shared { rc, .. } | Owned { rc, .. } => rc,
+    }
+  }
+
+  pub fn set_rc(&mut self, value: Weak<()>) {
+    match self {
+      Virtual { rc, .. } => *rc = value,
+      Shared { rc, .. } => *rc = value,
+      Owned { rc, .. } => *rc = value,
     }
   }
 
@@ -246,11 +362,22 @@ impl<T> Entry<T> {
   where
     T: Clone,
   {
+    take_mut::take(self, |this| match this {
+      Virtual { value, rc, .. } => Owned {
+        value: value.as_ref().unwrap().as_ref().clone(),
+        rc,
+      },
+      Shared { value, rc } => Owned {
+        value: value.as_ref().clone(),
+        rc,
+      },
+      owned => owned,
+    });
+
     match self {
-      // SAFETY: Never a None stored.
-      Virtual { value, .. } => Rc::make_mut(value.as_mut().unwrap()),
-      Shared { value, .. } => Rc::make_mut(value),
       Owned { value, .. } => value,
+      // SAFETY: Inner value converted to owned.
+      _ => unsafe { unreachable_unchecked() },
     }
   }
 
@@ -263,7 +390,7 @@ impl<T> Entry<T> {
     }
   }
 
-  pub fn share(&mut self, index: usize) -> (&Rc<T>, usize) {
+  pub fn share(&mut self, index: Uuid) -> (&Rc<T>, Uuid) {
     match self {
       Virtual {
         value, real_index, ..
@@ -304,7 +431,7 @@ macro_rules! make_refcounted_pool {
     paste::paste! {
       mod [<$struct_name:snake _impl>] {
         use std::rc::Weak;
-        use std::num::NonZeroUsize;
+        use std::num::NonZeroU128;
 
         use $crate::deps::serde::{Deserialize, Serialize};
 
@@ -322,61 +449,45 @@ macro_rules! make_refcounted_pool {
         }
 
         #[derive(Clone, Debug, Hash)]
+        #[derive(Serialize)]
+        #[serde(transparent)]
         pub struct $pool_name {
-          next_index: usize,
           pool: $crate::pool::Pool<Obj>,
         }
 
-
-        impl Serialize for $pool_name
-        {
-          fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-          where
-            S: serde::Serializer,
-          {
-            let mut pool = self.pool.clone();
-            pool.collect_garbage();
-            pool.serialize(serializer)
-          }
-        }
-
-        impl<'de> Deserialize<'de> for $pool_name
-        where
-        {
-          fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-          where
-            D: serde::Deserializer<'de>,
-          {
-            let pool = $crate::pool::Pool::<Obj>::deserialize(deserializer)?;
-            let next_index = pool.map.keys().max().copied().unwrap_or(1);
-
-            Ok(Self { next_index, pool })
-          }
+        #[derive(Deserialize)]
+        #[serde(transparent)]
+        pub struct [<Disassociated $pool_name:camel>] {
+          pool: $crate::pool::DisassociatedPool<Obj>,
         }
 
         impl $pool_name {
           pub fn new() -> Self {
             Self {
-              next_index: 1,
               pool: $crate::pool::Pool::new(),
             }
           }
 
-          fn next_index(&mut self) -> usize {
-            let index = self.next_index;
-            self.next_index += 1;
-            index
+          #[cfg(test)]
+          fn next_index(&mut self) -> u128 {
+            (self.len() + 1) as u128
+          }
+
+          #[cfg(not(test))]
+          fn next_index(&mut self) -> u128 {
+            let index = $crate::deps::uuid::Uuid::new_v4();
+            index.as_u128()
           }
 
           fn get_next_handle(&mut self) -> ($crate::pool::Handle, Weak<()>) {
             let index = self.next_index();
             // SAFETY: Index starts at 1
-            $crate::pool::Handle::new_pair(unsafe { NonZeroUsize::new_unchecked(index) })
+            $crate::pool::Handle::new_pair(unsafe { NonZeroU128::new_unchecked(index) })
           }
 
           pub fn insert(&mut self, object: Obj) -> $struct_name {
             let (handle, weak) = self.get_next_handle();
-            let index = handle.index.get();
+            let index = handle.get_index();
             self
               .pool
               .map
@@ -390,13 +501,13 @@ macro_rules! make_refcounted_pool {
 
 
           pub fn reinsert(&mut self, $struct_name(original_handle): &$struct_name) -> Option<$struct_name> {
-            let original_index = original_handle.index.get();
+            let original_index = original_handle.get_index();
             let (new_handle, rc) = self.get_next_handle();
-            let new_handle_index = new_handle.index.get();
+            let new_handle_index = new_handle.get_index();
             if let Some(current_entry) = self
               .pool
               .map
-              .get_mut(&original_handle.index.get())
+              .get_mut(&original_handle.get_index())
               .filter(|entry| Weak::as_ptr(entry.get_rc()) == original_handle.as_ptr())
             {
               let (value, real_index) = current_entry.share(original_index);
@@ -414,14 +525,14 @@ macro_rules! make_refcounted_pool {
 
           pub fn get(&self, $struct_name(handle): &$struct_name) -> Option<&Obj> {
             self.pool.map
-              .get(&handle.index.get())
+              .get(&handle.get_index())
               .filter(|entry| Weak::as_ptr(entry.get_rc()) == handle.as_ptr())
               .map(|entry| entry.get())
           }
 
           pub fn get_mut(&mut self, $struct_name(handle): &$struct_name) -> Option<&mut Obj> {
             self.pool.map
-              .get_mut(&handle.index.get())
+              .get_mut(&handle.get_index())
               .filter(|entry| Weak::as_ptr(entry.get_rc()) == handle.as_ptr())
               .map(|entry| {
                 entry.promote();
@@ -430,76 +541,51 @@ macro_rules! make_refcounted_pool {
           }
 
           pub fn remove(&mut self, $struct_name(handle): &$struct_name) {
-            self.pool.map.remove(&handle.index.get());
-          }
-
-          pub fn reassociate(&mut self, $struct_name(handle): &mut $struct_name) -> bool {
-            if let Some(inserted) = self.pool.map.get(&handle.index.get()) {
-              if let Some(rc) = Weak::upgrade(inserted.get_rc()) {
-                handle.rc = Some(rc);
-                return true;
-              }
-            };
-
-            false
+            self.pool.map.remove(&handle.get_index());
           }
 
           pub fn collect_garbage(&mut self) {
-            for (k, entry) in self.pool.map.clone().iter() {
-              if Weak::strong_count(entry.get_rc()) == 0 {
-                self.pool.map.remove(k);
-              }
-            }
-            let key_ref = self.pool.map.clone();
-            let mut deduplicated_keys = std::collections::HashMap::<usize, usize>::new();
-            for (k, entry) in self.pool.map.iter_mut() {
-              match entry {
-                $crate::pool::Entry::Virtual { mut real_index, .. }
-                  if key_ref
-                    .get(&real_index)
-                    .map_or(true, |ref real_entry| !real_entry.ptr_eq(entry)) =>
-                {
-                  if let Some(new_real_index) = deduplicated_keys.get(&real_index) {
-                    *&mut real_index = *new_real_index;
-                  } else {
-                    deduplicated_keys.insert(real_index, *k);
-                    entry.promote();
-                  };
-                }
-                _ => {}
-              }
-            }
+            self.pool.collect_garbage()
           }
 
-          pub fn iter(&self) -> impl Iterator<Item = (usize, &Obj)> {
-            self.pool.map.iter().map(|(k, v)| {
-              (*k, v.get())
-            })
+          pub fn iter_ids(&self) -> impl Iterator<Item = ($crate::deps::uuid::Uuid, &Obj)> {
+            self.pool.iter()
           }
 
-          pub fn iter_weak(&self) -> impl Iterator<Item = ($struct_name, &Obj)> {
+          pub fn as_weak_iter(&self) -> impl Iterator<Item = ($struct_name, &Obj)> {
             self.pool.map.iter().map(|(k, v)| {
               ($struct_name($crate::pool::Handle {
                 // SAFETY: Indexing starts at 1
-                index: unsafe { NonZeroUsize::new_unchecked(*k) },
+                // index: NonZeroUuid(unsafe { NonZeroU128::new_unchecked(k) }),
+                // Goal: NonZeroUuid, have: Uuid
+                index: $crate::pool::NonZeroUuid(unsafe { NonZeroU128::new_unchecked(k.as_u128()) }),
                 rc: None,
               }), v.get())
             })
           }
 
-          pub fn into_hashmap(&self) -> std::collections::HashMap<usize, &Obj> {
+          pub fn into_hashmap(&self) -> std::collections::HashMap<$crate::deps::uuid::Uuid, &Obj> {
             self.pool.map.iter().map(|(k, v)| {
               (*k, v.get())
             }).collect()
           }
 
           pub fn len(&self) -> usize {
-            self.pool.map.keys().len()
+            self.pool.len()
+          }
+        }
+
+        impl [<Disassociated $pool_name:camel>] {
+          pub fn reassociate<'a>(self, handles: impl IntoIterator<Item = &'a mut $struct_name>) -> $pool_name {
+            let pool = self.pool.reassociate(handles.into_iter().map(|$struct_name(handle)| handle));
+
+            $pool_name { pool }
           }
         }
       }
       pub use [<$struct_name:snake _impl>]::$struct_name;
       pub use [<$struct_name:snake _impl>]::$pool_name;
+      pub use [<$struct_name:snake _impl>]::[<Disassociated $pool_name:camel>];
     }
   };
 }
@@ -525,17 +611,17 @@ mod tests {
   fn test_sizeof() {
     assert_eq!(
       std::mem::size_of::<FooHandle>(),
-      std::mem::size_of::<usize>() * 2
+      std::mem::size_of::<usize>() + 16
     );
 
     assert_eq!(
       std::mem::size_of::<Option<FooHandle>>(),
-      std::mem::size_of::<usize>() * 2
+      std::mem::size_of::<usize>() + 16
     );
 
     assert_eq!(
       std::mem::size_of::<FooPool>(),
-      std::mem::size_of::<usize>() * 4
+      std::mem::size_of::<usize>() * 3
     );
   }
 
@@ -600,23 +686,23 @@ mod tests {
     // The mutation and new value are only visible in layer 2:
     assert_yaml_snapshot!((&layer1, &layer2), @r###"
     ---
-    - 1:
+    - 00000000-0000-0000-0000-000000000001:
         type: Owned
         value:
           name: one
-      2:
+      00000000-0000-0000-0000-000000000002:
         type: Owned
         value:
           name: TWO
-    - 1:
+    - 00000000-0000-0000-0000-000000000001:
         type: Owned
         value:
           name: _one_
-      2:
+      00000000-0000-0000-0000-000000000002:
         type: Owned
         value:
           name: TWO
-      3:
+      00000000-0000-0000-0000-000000000003:
         type: Owned
         value:
           name: "3"
@@ -630,15 +716,15 @@ mod tests {
     assert_eq!((layer1.len(), layer2.len()), (2, 3));
     assert_yaml_snapshot!((&layer1, &layer2), @r###"
     ---
-    - 2:
+    - 00000000-0000-0000-0000-000000000002:
         type: Owned
         value:
           name: TWO
-    - 2:
+    - 00000000-0000-0000-0000-000000000002:
         type: Owned
         value:
           name: TWO
-      3:
+      00000000-0000-0000-0000-000000000003:
         type: Owned
         value:
           name: "3"
@@ -650,15 +736,15 @@ mod tests {
     // However that only affects the one layer:
     assert_yaml_snapshot!((&layer1, &layer2), @r###"
     ---
-    - 2:
+    - 00000000-0000-0000-0000-000000000002:
         type: Owned
         value:
           name: TWO
-    - 2:
+    - 00000000-0000-0000-0000-000000000002:
         type: Owned
         value:
           name: TWO
-      3:
+      00000000-0000-0000-0000-000000000003:
         type: Owned
         value:
           name: "3"
@@ -673,15 +759,15 @@ mod tests {
     assert_eq!((layer1.len(), layer2.len()), (1, 2));
     assert_yaml_snapshot!((&layer1, &layer2), @r###"
     ---
-    - 2:
+    - 00000000-0000-0000-0000-000000000002:
         type: Owned
         value:
           name: TWO
-    - 2:
+    - 00000000-0000-0000-0000-000000000002:
         type: Owned
         value:
           name: TWO
-      3:
+      00000000-0000-0000-0000-000000000003:
         type: Owned
         value:
           name: "3"
@@ -736,10 +822,6 @@ mod tests {
     ---
     name: "3"
     "###);
-
-    // And these values are structurally equal, even if they are from different
-    // pools:
-    assert_eq!(layer1_handle, layer2_handle);
   }
 
   /// Test that handles cannot be used across different pools, in case an object
@@ -753,7 +835,7 @@ mod tests {
     let handle_one = pool1.insert(make_obj("one"));
     assert_yaml_snapshot!((&pool1), @r###"
     ---
-    1:
+    00000000-0000-0000-0000-000000000001:
       type: Owned
       value:
         name: one
@@ -774,16 +856,16 @@ mod tests {
 
     assert_yaml_snapshot!((&pool1), @r###"
     ---
-    1:
+    00000000-0000-0000-0000-000000000001:
       type: Shared
       value:
         name: one
-    2:
+    00000000-0000-0000-0000-000000000002:
       type: Virtual
-      real_index: 1
-    3:
+      real_index: 00000000-0000-0000-0000-000000000001
+    00000000-0000-0000-0000-000000000003:
       type: Virtual
-      real_index: 1
+      real_index: 00000000-0000-0000-0000-000000000001
     "###);
 
     let mut obj_two = pool1.get_mut(&handle_one_cow).unwrap();
@@ -793,18 +875,310 @@ mod tests {
 
     assert_yaml_snapshot!((&pool1), @r###"
     ---
-    1:
+    00000000-0000-0000-0000-000000000001:
       type: Shared
       value:
         name: one
-    2:
-      type: Shared
+    00000000-0000-0000-0000-000000000002:
+      type: Owned
       value:
         name: TWO
-    3:
-      type: Shared
+    00000000-0000-0000-0000-000000000003:
+      type: Owned
       value:
         name: tres
+    "###);
+
+    pool1.collect_garbage();
+    pool1.collect_garbage();
+    // Should convert shared values into owned values
+    assert_yaml_snapshot!((&pool1), @r###"
+    ---
+    00000000-0000-0000-0000-000000000001:
+      type: Shared
+      value:
+        name: one
+    00000000-0000-0000-0000-000000000002:
+      type: Owned
+      value:
+        name: TWO
+    00000000-0000-0000-0000-000000000003:
+      type: Owned
+      value:
+        name: tres
+    "###);
+  }
+
+  fn serde_clone(value: &FooPool) -> DisassociatedFooPool {
+    let serialized = serde_json::to_string(value).unwrap();
+    let deserialized: DisassociatedFooPool = serde_json::from_str(&serialized).unwrap();
+
+    deserialized
+  }
+
+  #[test]
+  fn test_reassociation_simple() {
+    let make_obj = |s: &'static str| FooObject {
+      name: Cow::Borrowed(s),
+    };
+    let mut pool = FooPool::new();
+    let mut handle_one = pool.insert(make_obj("one"));
+
+    assert_yaml_snapshot!(pool, @r###"
+    ---
+    00000000-0000-0000-0000-000000000001:
+      type: Owned
+      value:
+        name: one
+    "###);
+
+    let pool_clone = serde_clone(&pool).reassociate([]);
+    assert_yaml_snapshot!(pool_clone, @r###"
+    ---
+    {}
+    "###);
+
+    let pool_clone = serde_clone(&pool).reassociate([&mut handle_one]);
+
+    // After re
+    assert_yaml_snapshot!(pool_clone, @r###"
+    ---
+    00000000-0000-0000-0000-000000000001:
+      type: Owned
+      value:
+        name: one
+    "###);
+  }
+
+  #[test]
+  fn test_reassociation_shared() {
+    let make_obj = |s: &'static str| FooObject {
+      name: Cow::Borrowed(s),
+    };
+    let mut pool = FooPool::new();
+    let mut handle_one = pool.insert(make_obj("one"));
+    let mut handle_two = pool.reinsert(&handle_one).unwrap();
+
+    let pool_clone = serde_clone(&pool).reassociate([&mut handle_one]);
+    // Only the second handle was reassociated, and it became shared
+    assert_yaml_snapshot!(pool_clone, @r###"
+    ---
+    00000000-0000-0000-0000-000000000001:
+      type: Shared
+      value:
+        name: one
+    "###);
+
+    let pool_clone = serde_clone(&pool).reassociate([&mut handle_two]);
+    // Only the second handle was reassociated, and it became shared
+    assert_yaml_snapshot!(pool_clone, @r###"
+    ---
+    00000000-0000-0000-0000-000000000002:
+      type: Shared
+      value:
+        name: one
+    "###);
+  }
+
+  #[test]
+  fn get_mut_takes_ownership() {
+    let make_obj = |s: &'static str| FooObject {
+      name: Cow::Borrowed(s),
+    };
+    let mut pool = FooPool::new();
+    let handle_one = pool.insert(make_obj("one"));
+    let handle_two = pool.reinsert(&handle_one).unwrap();
+
+    assert_yaml_snapshot!(pool, @r###"
+    ---
+    00000000-0000-0000-0000-000000000001:
+      type: Shared
+      value:
+        name: one
+    00000000-0000-0000-0000-000000000002:
+      type: Virtual
+      real_index: 00000000-0000-0000-0000-000000000001
+    "###);
+
+    pool.get_mut(&handle_two);
+
+    assert_yaml_snapshot!(pool, @r###"
+    ---
+    00000000-0000-0000-0000-000000000001:
+      type: Shared
+      value:
+        name: one
+    00000000-0000-0000-0000-000000000002:
+      type: Owned
+      value:
+        name: one
+    "###);
+  }
+
+  #[test]
+  fn weak_clone_allows_garbage_collection() {
+    let make_obj = |s: &'static str| FooObject {
+      name: Cow::Borrowed(s),
+    };
+    let mut pool = FooPool::new();
+    let handle_one = pool.insert(make_obj("one"));
+    let handle_one_weak = handle_one.weak_clone();
+
+    pool.collect_garbage(); // No-op, handle_one still live
+    assert_yaml_snapshot!(pool, @r###"
+    ---
+    00000000-0000-0000-0000-000000000001:
+      type: Owned
+      value:
+        name: one
+    "###);
+
+    std::mem::drop(handle_one);
+    pool.collect_garbage(); // Drops entry, no strong handle alive
+    assert_yaml_snapshot!(pool, @r###"
+    ---
+    {}
+    "###);
+
+    std::mem::drop(handle_one_weak);
+  }
+
+  #[test]
+  fn remove_is_immutabable_op() {
+    let make_obj = |s: &'static str| FooObject {
+      name: Cow::Borrowed(s),
+    };
+    let mut pool = FooPool::new();
+    let handle_one = pool.insert(make_obj("one"));
+
+    let mut layer = pool.clone();
+    layer.remove(&handle_one);
+
+    assert_yaml_snapshot!((&pool, &layer), @r###"
+    ---
+    - 00000000-0000-0000-0000-000000000001:
+        type: Owned
+        value:
+          name: one
+    - {}
+    "###);
+
+    std::mem::drop(handle_one);
+  }
+
+  #[test]
+  fn remove_does_not_break_virtual_references() {
+    let make_obj = |s: &'static str| FooObject {
+      name: Cow::Borrowed(s),
+    };
+    let mut pool = FooPool::new();
+    let handle_one = pool.insert(make_obj("one"));
+    let handle_two = pool.reinsert(&handle_one).unwrap();
+
+    let mut layer = pool.clone();
+    layer.remove(&handle_one);
+
+    assert_yaml_snapshot!((&pool, &layer), @r###"
+    ---
+    - 00000000-0000-0000-0000-000000000001:
+        type: Shared
+        value:
+          name: one
+      00000000-0000-0000-0000-000000000002:
+        type: Virtual
+        real_index: 00000000-0000-0000-0000-000000000001
+    - 00000000-0000-0000-0000-000000000002:
+        type: Shared
+        value:
+          name: one
+    "###);
+
+    // The value is lazily still "shared" until we try to mutate it, keeping
+    // reinserts cheap.
+    let mut value = layer.get_mut(&handle_two).unwrap();
+    value.name = "dos".into();
+    layer.collect_garbage();
+    assert_yaml_snapshot!(layer, @r###"
+    ---
+    00000000-0000-0000-0000-000000000002:
+      type: Owned
+      value:
+        name: dos
+    "###);
+
+    std::mem::drop(handle_one);
+    std::mem::drop(handle_two);
+  }
+
+  #[test]
+  fn can_iter_over_uuids_and_values() {
+    let make_obj = |s: &'static str| FooObject {
+      name: Cow::Borrowed(s),
+    };
+    let mut pool = FooPool::new();
+    let handle_one = pool.insert(make_obj("one"));
+    pool.reinsert(&handle_one).unwrap();
+
+    let collected: Vec<_> = pool.iter_ids().collect();
+    assert_yaml_snapshot!(collected, @r###"
+    ---
+    - - 00000000-0000-0000-0000-000000000001
+      - name: one
+    - - 00000000-0000-0000-0000-000000000002
+      - name: one
+    "###);
+  }
+
+  #[test]
+  fn can_iter_over_weak_handles() {
+    let make_obj = |s: &'static str| FooObject {
+      name: Cow::Borrowed(s),
+    };
+    let mut pool = FooPool::new();
+    let handle_one = pool.insert(make_obj("one"));
+    pool.reinsert(&handle_one).unwrap();
+
+    let collected: Vec<_> = pool.as_weak_iter().collect();
+    // Because the rc is skipped, the serialization format is the same as iter_ids()
+    assert_yaml_snapshot!(collected, @r###"
+    ---
+    - - 00000000-0000-0000-0000-000000000001
+      - name: one
+    - - 00000000-0000-0000-0000-000000000002
+      - name: one
+    "###);
+
+    std::mem::drop(handle_one);
+
+    assert_yaml_snapshot!(pool, @r###"
+    ---
+    {}
+    "###);
+
+    // Drop the weak handles
+    std::mem::drop(collected);
+  }
+
+  #[test]
+  fn can_into_hashmap() {
+    let make_obj = |s: &'static str| FooObject {
+      name: Cow::Borrowed(s),
+    };
+    let mut pool = FooPool::new();
+    let handle_one = pool.insert(make_obj("one"));
+    pool.reinsert(&handle_one).unwrap();
+
+    let std_hashmap = pool.into_hashmap();
+
+    let mut items = std_hashmap.iter().collect::<Vec<_>>();
+    items.sort();
+    // The order would be nondeterministic, so render the sorted items:
+    assert_yaml_snapshot!(items, @r###"
+    ---
+    - - 00000000-0000-0000-0000-000000000001
+      - name: one
+    - - 00000000-0000-0000-0000-000000000002
+      - name: one
     "###);
   }
 }
