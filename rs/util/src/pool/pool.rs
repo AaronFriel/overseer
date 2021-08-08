@@ -46,9 +46,10 @@ where
   }
 }
 
-impl<T> Pool<T>
+impl<T, S> Pool<T, S>
 where
   T: Clone,
+  S: BuildHasher + Default,
 {
   pub fn new() -> Self {
     Self {
@@ -94,6 +95,44 @@ where
   pub fn len(&self) -> usize {
     self.map.len()
   }
+
+  pub fn to_disassociated_pool(self) -> DisassociatedPool<T, S> {
+    let mut map = self.map;
+    let mut handles: std::collections::HashMap<Uuid, Handle> = Default::default();
+
+    let cloned_map = map.clone();
+
+    for (k, v) in map.iter_mut() {
+      match v {
+        Virtual {
+          real_index,
+          value: virtual_value,
+          ..
+        } => {
+          // Safety: real_index must invariably point at a live value:
+          let real_entry = cloned_map.get(real_index).unwrap();
+          match real_entry {
+            Shared {
+              value: real_value, ..
+            } => {
+              // Our iterator reached the virtual before the shared, we don't need to create a
+              // handle for both, but we do need to link the values.
+              *virtual_value = Some(Rc::clone(real_value));
+            }
+            _ => unreachable!(),
+          }
+        }
+        _ => {}
+      }
+
+      let rc = v.get_rc_mut();
+      let (handle, weak) = Handle::new_pair(unsafe { NonZeroU128::new_unchecked(k.as_u128()) });
+      handles.insert(*k, handle);
+      *rc = weak;
+    }
+
+    DisassociatedPool { map, handles }
+  }
 }
 
 impl<T> DisassociatedPool<T>
@@ -132,6 +171,21 @@ where
   }
 }
 
+impl<'de, T, S> Deserialize<'de> for Pool<T, S>
+where
+  T: Deserialize<'de> + Clone,
+  S: BuildHasher + Default,
+{
+  fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+  where
+    D: Deserializer<'de>,
+  {
+    let map = HashMap::<Uuid, Entry<T>, S>::deserialize(deserializer)?;
+
+    Ok(Self { map })
+  }
+}
+
 impl<'de, T, S> Deserialize<'de> for DisassociatedPool<T, S>
 where
   T: Deserialize<'de> + Clone,
@@ -141,43 +195,7 @@ where
   where
     D: Deserializer<'de>,
   {
-    let mut map = HashMap::<Uuid, Entry<T>, S>::deserialize(deserializer)?;
-    let mut unassociated_handles: std::collections::HashMap<Uuid, Handle> = Default::default();
-
-    let cloned_map = map.clone();
-
-    for (k, v) in map.iter_mut() {
-      match v {
-        Virtual {
-          real_index,
-          value: virtual_value,
-          ..
-        } => {
-          // Safety: real_index must invariably point at a live value:
-          let real_entry = cloned_map.get(real_index).unwrap();
-          match real_entry {
-            Shared {
-              value: real_value, ..
-            } => {
-              // Our iterator reached the virtual before the shared, we don't need to create a
-              // handle for both, but we do need to link the values.
-              *virtual_value = Some(Rc::clone(real_value));
-            }
-            _ => unreachable!(),
-          }
-        }
-        _ => {}
-      }
-
-      let rc = v.get_rc_mut();
-      let (handle, weak) = Handle::new_pair(unsafe { NonZeroU128::new_unchecked(k.as_u128()) });
-      unassociated_handles.insert(*k, handle);
-      *rc = weak;
-    }
-
-    Ok(Self {
-      map,
-      handles: unassociated_handles,
-    })
+    let map = HashMap::<Uuid, Entry<T>, S>::deserialize(deserializer)?;
+    Ok(Pool { map }.to_disassociated_pool())
   }
 }

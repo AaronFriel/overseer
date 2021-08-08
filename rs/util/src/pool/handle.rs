@@ -26,6 +26,10 @@ impl Handle {
     }
   }
 
+  pub fn is_weak(&self) -> bool {
+    self.rc.is_none()
+  }
+
   pub fn get_index(&self) -> Uuid {
     Uuid::from_u128(self.index.0.get())
   }

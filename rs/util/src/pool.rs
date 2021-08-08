@@ -27,10 +27,14 @@ macro_rules! make_refcounted_pool {
           pub fn weak_clone(&self) -> Self {
             $struct_name(self.0.weak_clone())
           }
+
+          pub fn is_weak(&self) -> bool {
+            self.0.is_weak()
+          }
         }
 
         #[derive(Clone, Debug, Hash)]
-        #[derive(Serialize)]
+        #[derive(Serialize, Deserialize)]
         #[serde(transparent)]
         pub struct $pool_name {
           pool: $crate::pool::Pool<Obj>,
@@ -153,6 +157,13 @@ macro_rules! make_refcounted_pool {
 
           pub fn len(&self) -> usize {
             self.pool.len()
+          }
+
+          pub fn reassociate<'a>(&mut self, handles: impl IntoIterator<Item = &'a mut $struct_name>) {
+            let pool = self.pool.clone();
+            let pool = pool.to_disassociated_pool();
+            let pool = pool.reassociate(handles.into_iter().map(|$struct_name(handle)| handle));
+            self.pool = pool;
           }
         }
 
@@ -492,7 +503,7 @@ mod tests {
 
   fn serde_clone(value: &FooPool) -> DisassociatedFooPool {
     let serialized = serde_json::to_string(value).unwrap();
-    let deserialized: DisassociatedFooPool = serde_json::from_str(&serialized).unwrap();
+    let deserialized = serde_json::from_str(&serialized).unwrap();
 
     deserialized
   }
@@ -760,6 +771,53 @@ mod tests {
       - name: one
     - - 00000000-0000-0000-0000-000000000002
       - name: one
+    "###);
+  }
+
+  #[test]
+  fn manual_reassociate() {
+    let make_obj = |s: &'static str| FooObject {
+      name: Cow::Borrowed(s),
+    };
+    let mut pool = FooPool::new();
+    let handle_one = pool.insert(make_obj("one"));
+    let mut handle_one_weak = handle_one.weak_clone();
+
+    std::mem::drop(handle_one); // Entry is now disassociated, but we can recover
+
+    // Proof of diassociation, a clone that's been garbage collected will be empty:
+    {
+      let mut cloned = pool.clone();
+      cloned.collect_garbage();
+      assert_yaml_snapshot!(cloned, @r###"
+      ---
+      {}
+      "###);
+    }
+
+    assert_eq!(handle_one_weak.is_weak(), true);
+    pool.reassociate([&mut handle_one_weak]);
+    assert_eq!(handle_one_weak.is_weak(), false);
+
+    // Proof of reassociation, same operation but the weak handle is now strong:
+    {
+      let mut cloned = pool.clone();
+      cloned.collect_garbage();
+      assert_yaml_snapshot!(cloned, @r###"
+      ---
+      00000000-0000-0000-0000-000000000001:
+        type: Owned
+        value:
+          name: one
+      "###);
+    }
+    pool.collect_garbage();
+    assert_yaml_snapshot!(pool, @r###"
+    ---
+    00000000-0000-0000-0000-000000000001:
+      type: Owned
+      value:
+        name: one
     "###);
   }
 }
