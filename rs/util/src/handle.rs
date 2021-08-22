@@ -14,11 +14,11 @@ where
 #[macro_export]
 macro_rules! make_handle {
   ($struct_name:ident, $size:ty) => {
-    paste::paste! {
+    $crate::deps::paste::paste! {
       mod [<$struct_name:snake _impl>] {
-        use serde::{Deserialize, Serialize};
-        use serde_diff::SerdeDiff;
-        use nonzero_ext::NonZeroAble;
+        use $crate::deps::serde::{Deserialize, Serialize};
+        use $crate::deps::serde_diff::SerdeDiff;
+        use $crate::deps::nonzero_ext::NonZeroAble;
         use $crate::handle::Handle;
 
         #[derive(Copy, Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]

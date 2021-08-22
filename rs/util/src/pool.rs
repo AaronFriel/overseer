@@ -9,7 +9,7 @@ pub use self::{entry::*, handle::*, nonzerouuid::*, pool::*};
 #[macro_export]
 macro_rules! make_refcounted_pool {
   ($object_name:ident, $pool_name:ident, $struct_name:ident) => {
-    paste::paste! {
+    $crate::deps::paste::paste! {
       mod [<$struct_name:snake _impl>] {
         use std::rc::Weak;
         use std::num::NonZeroU128;
