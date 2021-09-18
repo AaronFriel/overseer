@@ -49,4 +49,20 @@ impl ChoiceOption {
       None
     }
   }
+
+  pub fn as_player(&self) -> Option<&PlayerHandle> {
+    if let Self::Player(v) = self {
+      Some(v)
+    } else {
+      None
+    }
+  }
+
+  pub fn as_object(&self) -> Option<&ObjectHandle> {
+    if let Self::Object(v) = self {
+      Some(v)
+    } else {
+      None
+    }
+  }
 }

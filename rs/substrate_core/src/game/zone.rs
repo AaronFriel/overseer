@@ -5,12 +5,11 @@ use std::{
 };
 
 use serde::{Deserialize, Serialize};
-use serde_diff::SerdeDiff;
 
 use crate::game::ObjectHandle;
 
 #[derive(Copy, Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
-#[derive(Serialize, Deserialize, SerdeDiff)]
+#[derive(Serialize, Deserialize)]
 pub enum Zones {
   Hand,
   Library,
@@ -37,15 +36,14 @@ pub struct Exile;
 pub struct Command;
 
 #[derive(Clone, Eq, PartialEq, Debug, Default)]
-#[derive(Serialize, Deserialize, SerdeDiff)]
+#[derive(Serialize, Deserialize)]
 pub struct Zone<K>
 where
   K: ZoneKinded,
 {
-  cards: K::Collection,
+  objects: K::Collection,
   count: u32,
   #[serde(skip)]
-  #[serde_diff(skip)]
   kind: PhantomData<K>,
 }
 
@@ -54,7 +52,7 @@ where
   K: ZoneKinded,
 {
   fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-    self.cards.iter().for_each(|x| x.hash(state));
+    self.objects.iter().for_each(|x| x.hash(state));
     self.count.hash(state);
   }
 }
@@ -63,7 +61,7 @@ pub trait ZoneKinded:
   Clone + Eq + PartialEq + PartialOrd + std::hash::Hash + std::fmt::Debug + Default
 {
   const KIND: Zones;
-  type Collection: CardCollection;
+  type Collection: ObjectCollection;
 }
 
 impl ZoneKinded for Hand {
@@ -72,7 +70,7 @@ impl ZoneKinded for Hand {
   const KIND: Zones = Zones::Hand;
 }
 impl ZoneKinded for Library {
-  type Collection = VecDeque<ObjectHandle>;
+  type Collection = VecDeque<Option<ObjectHandle>>;
 
   const KIND: Zones = Zones::Library;
 }
@@ -82,12 +80,12 @@ impl ZoneKinded for Battlefield {
   const KIND: Zones = Zones::Battlefield;
 }
 impl ZoneKinded for Graveyard {
-  type Collection = VecDeque<ObjectHandle>;
+  type Collection = VecDeque<Option<ObjectHandle>>;
 
   const KIND: Zones = Zones::Graveyard;
 }
 impl ZoneKinded for Stack {
-  type Collection = VecDeque<ObjectHandle>;
+  type Collection = VecDeque<Option<ObjectHandle>>;
 
   const KIND: Zones = Zones::Stack;
 }
@@ -108,30 +106,31 @@ where
 {
   pub fn new() -> Self {
     Self {
-      cards: Default::default(),
+      objects: Default::default(),
       count: 0,
       kind: PhantomData,
     }
   }
 
   pub fn iter(&self) -> impl Iterator<Item = &ObjectHandle> {
-    self.cards.iter()
+    self.objects.iter()
   }
 
-  pub fn insert(&mut self, object_handle: ObjectHandle) -> bool {
-    let inserted = self.cards.insert(object_handle);
-    if inserted {
-      self.count += 1
-    }
+  pub fn iter_weak(&self) -> impl Iterator<Item = ObjectHandle> + '_ {
+    self.objects.iter().map(ObjectHandle::weak_clone)
+  }
+
+  pub fn insert(&mut self, object: ObjectHandle) -> bool {
+    let inserted = self.objects.insert(object);
+    debug_assert!(inserted);
+    self.count += 1;
     inserted
   }
 
-  pub fn remove(&mut self, object_handle: &ObjectHandle) -> bool {
-    let removed = self.cards.remove(object_handle);
-
-    if removed {
-      self.count -= 1;
-    }
+  pub fn remove(&mut self, object: &ObjectHandle) -> bool {
+    let removed = self.objects.remove(object);
+    debug_assert!(removed);
+    self.count -= 1;
     removed
   }
 
@@ -143,12 +142,18 @@ where
     self.count -= 1;
   }
 
-  pub fn clone_visible(&self, f: impl FnMut(&ObjectHandle) -> bool) -> Self {
-    let cards = self.cards.filter_clone(f);
-    Self { cards, ..*self }
+  /// Given a filter, return a filtered view that retains the original count.
+  pub fn into_filtered_view(&self, mut f: impl FnMut(&ObjectHandle) -> bool) -> Self {
+    let objects = self
+      .objects
+      .iter()
+      .filter(|o| f(*o))
+      .map(|o| o.weak_clone())
+      .collect();
+    Self { objects, ..*self }
   }
 
-  /// Get the zone's card count.
+  /// Get the zone's object count.
   pub fn count(&self) -> u32 {
     self.count
   }
@@ -159,168 +164,239 @@ where
   K: ZoneKinded,
 {
   fn from_iter<T: IntoIterator<Item = ObjectHandle>>(iter: T) -> Self {
-    let mut count = 0;
-    let cards = iter
-      .into_iter()
-      .map(|x| {
-        count += 1;
-        x
-      })
-      .collect();
+    let objects: <K as ZoneKinded>::Collection = iter.into_iter().collect();
+    let count = objects.count();
 
     Self {
-      cards,
+      objects,
       count,
       ..Default::default()
     }
   }
 }
 
-pub enum ViewedAs {
-  Player,
-  ControllerOfPlayer,
-  Other,
-}
-
-pub trait CardCollection:
-  Clone + Default + FromIterator<ObjectHandle> + Serialize + for<'de> Deserialize<'de> + SerdeDiff
+pub trait ObjectCollection:
+  Clone + Default + FromIterator<ObjectHandle> + Serialize + for<'de> Deserialize<'de>
 {
   fn iter(&self) -> Box<dyn Iterator<Item = &ObjectHandle> + '_>;
 
-  fn insert(&mut self, object_handle: ObjectHandle) -> bool;
+  fn count(&self) -> u32;
 
-  fn remove(&mut self, object_handle: &ObjectHandle) -> bool;
+  fn insert(&mut self, object: ObjectHandle) -> bool;
 
-  fn retain(&mut self, f: impl FnMut(&ObjectHandle) -> bool);
+  fn remove(&mut self, object: &ObjectHandle) -> bool;
 
-  fn filter_clone(&self, f: impl FnMut(&ObjectHandle) -> bool) -> Self;
+  fn clear(&mut self);
+
+  fn into_zone<K>(self) -> Zone<K>
+  where
+    K: ZoneKinded<Collection = Self>,
+  {
+    let count = self.count();
+    Zone {
+      objects: self,
+      count,
+      kind: Default::default(),
+    }
+  }
 }
 
-impl CardCollection for HashSet<ObjectHandle> {
+impl ObjectCollection for HashSet<ObjectHandle> {
   fn iter(&self) -> Box<dyn Iterator<Item = &ObjectHandle> + '_> {
     Box::new(self.iter())
   }
 
-  fn insert(&mut self, object_handle: ObjectHandle) -> bool {
-    self.insert(object_handle)
+  fn count(&self) -> u32 {
+    self.len() as u32
   }
 
-  fn remove(&mut self, object_handle: &ObjectHandle) -> bool {
-    self.remove(object_handle)
+  fn insert(&mut self, object: ObjectHandle) -> bool {
+    self.insert(object)
   }
 
-  fn retain(&mut self, f: impl FnMut(&ObjectHandle) -> bool) {
-    self.retain(f)
+  fn remove(&mut self, object: &ObjectHandle) -> bool {
+    self.remove(object)
   }
 
-  fn filter_clone(&self, mut f: impl FnMut(&ObjectHandle) -> bool) -> Self {
-    self.iter().filter(|h| f(h)).cloned().collect()
+  fn clear(&mut self) {
+    self.clear()
   }
 }
 
-impl CardCollection for VecDeque<ObjectHandle> {
+impl ObjectCollection for VecDeque<Option<ObjectHandle>> {
   fn iter(&self) -> Box<dyn Iterator<Item = &ObjectHandle> + '_> {
-    Box::new(self.iter())
+    Box::new(self.iter().filter_map(|x| x.as_ref()))
   }
 
-  fn insert(&mut self, object_handle: ObjectHandle) -> bool {
-    checked_insert(self, object_handle, |vec, o| vec.push_front(o))
+  fn count(&self) -> u32 {
+    self.len() as u32
   }
 
-  fn remove(&mut self, object_handle: &ObjectHandle) -> bool {
+  fn insert(&mut self, object: ObjectHandle) -> bool {
+    checked_insert(self, Some(object), |vec, o| vec.push_front(o))
+  }
+
+  fn remove(&mut self, object: &ObjectHandle) -> bool {
     let initial_len = self.len();
-    self.retain(|o| *o != *object_handle);
+    self.retain(|o| o.as_ref().map_or(true, |o| *o == *object));
     self.len() != initial_len
   }
 
-  fn retain(&mut self, f: impl FnMut(&ObjectHandle) -> bool) {
-    self.retain(f)
-  }
-
-  fn filter_clone(&self, mut f: impl FnMut(&ObjectHandle) -> bool) -> Self {
-    self.iter().filter(|h| f(h)).cloned().collect()
+  fn clear(&mut self) {
+    self.clear()
   }
 }
 
-pub trait OrderedCardCollection {
-  fn insert_at(&mut self, index: usize, object_handle: ObjectHandle) -> bool;
+impl FromIterator<ObjectHandle> for VecDeque<Option<ObjectHandle>> {
+  fn from_iter<T: IntoIterator<Item = ObjectHandle>>(iter: T) -> Self {
+    Self::from_iter(iter.into_iter().map(|x| Some(x)))
+  }
+}
+
+impl<K> ObjectCollection for Zone<K>
+where
+  K: ZoneKinded,
+  <K as ZoneKinded>::Collection: ObjectCollection,
+{
+  fn iter(&self) -> Box<dyn Iterator<Item = &ObjectHandle> + '_> {
+    self.objects.iter()
+  }
+
+  fn count(&self) -> u32 {
+    self.count
+  }
+
+  fn insert(&mut self, object: ObjectHandle) -> bool {
+    let inserted = self.objects.insert(object);
+    debug_assert!(inserted);
+    self.count += 1;
+    inserted
+  }
+
+  fn remove(&mut self, object: &ObjectHandle) -> bool {
+    let removed = self.objects.remove(object);
+    debug_assert!(removed);
+    self.count -= 1;
+    removed
+  }
+
+  fn clear(&mut self) {
+    self.objects.clear()
+  }
+}
+
+pub trait OrderedObjectCollection {
+  fn get_top(&self, index: usize) -> Option<&ObjectHandle>;
+
+  fn get_bottom(&self, index: usize) -> Option<&ObjectHandle>;
+
+  fn insert_top(&mut self, index: usize, object: ObjectHandle) -> bool;
+
+  fn insert_bottom(&mut self, index: usize, object: ObjectHandle) -> bool;
 
   fn remove_at(&mut self, index: usize) -> Option<ObjectHandle>;
 
-  fn push_top(&mut self, object_handle: ObjectHandle) -> bool;
+  fn push_top(&mut self, object: Option<ObjectHandle>) -> bool;
 
-  fn push_bottom(&mut self, object_handle: ObjectHandle) -> bool;
+  fn push_bottom(&mut self, object: Option<ObjectHandle>) -> bool;
 
   fn pop_top(&mut self) -> Option<ObjectHandle>;
 
   fn pop_bottom(&mut self) -> Option<ObjectHandle>;
 }
 
-impl OrderedCardCollection for VecDeque<ObjectHandle> {
-  fn insert_at(&mut self, index: usize, object_handle: ObjectHandle) -> bool {
-    checked_insert(self, object_handle, |vec, o| vec.insert(index, o))
+impl OrderedObjectCollection for VecDeque<Option<ObjectHandle>> {
+  fn get_top(&self, index: usize) -> Option<&ObjectHandle> {
+    self.get(index).and_then(|x| x.as_ref())
+  }
+
+  fn get_bottom(&self, index: usize) -> Option<&ObjectHandle> {
+    self
+      .get(self.len().wrapping_sub(1 + index))
+      .and_then(|x| x.as_ref())
+  }
+
+  fn insert_top(&mut self, index: usize, object: ObjectHandle) -> bool {
+    checked_insert(self, Some(object), |vec, o| vec.insert(index, o))
+  }
+
+  fn insert_bottom(&mut self, index: usize, object: ObjectHandle) -> bool {
+    let index = self.len().wrapping_sub(index);
+    checked_insert(self, Some(object), |vec, o| vec.insert(index, o))
   }
 
   fn remove_at(&mut self, index: usize) -> Option<ObjectHandle> {
-    self.remove(index)
+    self.remove(index).and_then(|x| x)
   }
 
-  fn push_top(&mut self, object_handle: ObjectHandle) -> bool {
-    checked_insert(self, object_handle, |vec, o| vec.push_front(o))
+  fn push_top(&mut self, object: Option<ObjectHandle>) -> bool {
+    checked_insert(self, object, |vec, o| vec.push_front(o))
   }
 
-  fn push_bottom(&mut self, object_handle: ObjectHandle) -> bool {
-    checked_insert(self, object_handle, |vec, o| vec.push_back(o))
+  fn push_bottom(&mut self, object: Option<ObjectHandle>) -> bool {
+    checked_insert(self, object, |vec, o| vec.push_back(o))
   }
 
   fn pop_top(&mut self) -> Option<ObjectHandle> {
-    self.pop_front()
+    self.pop_front().and_then(|x| x)
   }
 
   fn pop_bottom(&mut self) -> Option<ObjectHandle> {
-    self.pop_back()
+    self.pop_back().and_then(|x| x)
   }
 }
 
-impl<K> OrderedCardCollection for Zone<K>
+impl<K> OrderedObjectCollection for Zone<K>
 where
   K: ZoneKinded,
-  <K as ZoneKinded>::Collection: OrderedCardCollection,
+  <K as ZoneKinded>::Collection: OrderedObjectCollection,
 {
-  fn insert_at(&mut self, index: usize, object_handle: ObjectHandle) -> bool {
-    let inserted = self.cards.insert_at(index, object_handle);
-    if inserted {
-      self.count += 1;
-    }
+  fn get_top(&self, index: usize) -> Option<&ObjectHandle> {
+    self.objects.get_top(index)
+  }
+
+  fn get_bottom(&self, index: usize) -> Option<&ObjectHandle> {
+    self.objects.get_bottom(index)
+  }
+
+  fn insert_top(&mut self, index: usize, object: ObjectHandle) -> bool {
+    let inserted = self.objects.insert_top(index, object);
+    debug_assert!(inserted);
+    self.count += 1;
+    inserted
+  }
+
+  fn insert_bottom(&mut self, index: usize, object: ObjectHandle) -> bool {
+    let inserted = self.objects.insert_bottom(index, object);
+    debug_assert!(inserted);
+    self.count += 1;
     inserted
   }
 
   fn remove_at(&mut self, index: usize) -> Option<ObjectHandle> {
-    let removed = self.cards.remove_at(index);
+    let removed = self.objects.remove_at(index);
     if removed.is_some() {
       self.count -= 1;
     }
     removed
   }
 
-  fn push_top(&mut self, object_handle: ObjectHandle) -> bool {
-    let inserted = self.cards.push_top(object_handle);
-    if inserted {
-      self.count += 1;
-    }
+  fn push_top(&mut self, object: Option<ObjectHandle>) -> bool {
+    let inserted = self.objects.push_top(object);
+    debug_assert!(inserted);
+    self.count += 1;
     inserted
   }
 
-  fn push_bottom(&mut self, object_handle: ObjectHandle) -> bool {
-    let inserted = self.cards.push_bottom(object_handle);
-    if inserted {
-      self.count += 1;
-    }
+  fn push_bottom(&mut self, object: Option<ObjectHandle>) -> bool {
+    let inserted = self.objects.push_bottom(object);
+    debug_assert!(inserted);
+    self.count += 1;
     inserted
   }
 
   fn pop_top(&mut self) -> Option<ObjectHandle> {
-    let removed = self.cards.pop_top();
+    let removed = self.objects.pop_top();
     if removed.is_some() {
       self.count -= 1;
     }
@@ -328,7 +404,7 @@ where
   }
 
   fn pop_bottom(&mut self) -> Option<ObjectHandle> {
-    let removed = self.cards.pop_bottom();
+    let removed = self.objects.pop_bottom();
     if removed.is_some() {
       self.count -= 1;
     }

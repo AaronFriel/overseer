@@ -1,9 +1,6 @@
 use std::borrow::Cow;
 
-use overseer_substrate::{
-  game::{Card, ObjectColor},
-  mana_cost, type_line,
-};
+use overseer_substrate::{game::Card, mana_cost, type_line};
 
 pub const SERUM_POWDER: Card = Card {
   name: Cow::Borrowed("Serum Powder"),
@@ -18,7 +15,7 @@ pub const SERUM_POWDER: Card = Card {
   loyalty: 0,
   power: 0,
   toughness: 0,
-  color_indicator: ObjectColor::NONE,
+  color_indicator: None,
   #[cfg(feature = "vanguard")]
   hand_modifier: 0,
   #[cfg(feature = "vanguard")]

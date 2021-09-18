@@ -1,10 +1,9 @@
 use serde::{Deserialize, Serialize};
-use serde_diff::SerdeDiff;
 
 use crate::game::{Graveyard, Hand, Library, ObjectHandle, PlayerHandle, RegisteredCard, Zone};
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Default)]
-#[derive(Serialize, Deserialize, SerdeDiff)]
+#[derive(Serialize, Deserialize)]
 pub struct Player {
   pub name: String,
   pub handle: Option<PlayerHandle>,
@@ -51,9 +50,9 @@ impl Player {
   }
 
   pub fn clone_visible(&self, mut visible_set_filter: impl FnMut(&ObjectHandle) -> bool) -> Player {
-    let library = self.library.clone_visible(&mut visible_set_filter);
-    let hand = self.hand.clone_visible(&mut visible_set_filter);
-    let graveyard = self.graveyard.clone_visible(&mut visible_set_filter);
+    let library = self.library.into_filtered_view(&mut visible_set_filter);
+    let hand = self.hand.into_filtered_view(&mut visible_set_filter);
+    let graveyard = self.graveyard.into_filtered_view(&mut visible_set_filter);
 
     Player {
       name: self.name.clone(),

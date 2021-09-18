@@ -9,7 +9,7 @@ use overseer_substrate_core::{
 use super::{Event, EventList, Lose};
 
 struct Draw {
-  player_handle: PlayerHandle,
+  player: PlayerHandle,
 }
 
 #[async_trait]
@@ -38,7 +38,7 @@ pub struct DrawEmpty {
 impl<S: Session> Event<S> for DrawEmpty {
   async fn apply(self, _: &mut Game) -> EventList<S> {
     Some(vec![Box::new(Lose {
-      player_handle: self.player,
+      player: self.player,
     })])
   }
 }

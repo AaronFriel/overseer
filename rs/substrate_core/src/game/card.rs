@@ -3,7 +3,7 @@ use std::{borrow::Cow, collections::HashMap, sync::RwLock};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_diff::SerdeDiff;
 
-use crate::game::{Characterized, ManaCost, ObjectColor, ObjectColored, ObjectHandle, TypeLine};
+use crate::game::{Characterized, ManaCost, ObjectColor, ObjectColored, TypeLine};
 
 #[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug, Default)]
 #[derive(Serialize, Deserialize, SerdeDiff)]

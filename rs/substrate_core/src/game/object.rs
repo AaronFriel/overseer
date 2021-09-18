@@ -222,7 +222,7 @@ impl<'de> Deserialize<'de> for Status {
   }
 }
 
-make_refcounted_pool!(Object, ObjectPool, ObjectHandle, u32);
+make_refcounted_pool!(Object, ObjectPool, ObjectHandle);
 
 #[cfg(test)]
 mod test {
@@ -239,8 +239,8 @@ mod test {
 
   #[test]
   fn size_of() {
-    make_refcounted_pool!(Object, FooPool, FooHandle, u32);
-    assert_eq!(std::mem::size_of::<FooHandle>(), 16);
+    make_refcounted_pool!(Object, FooPool, FooHandle);
+    assert_eq!(std::mem::size_of::<FooHandle>(), 24);
     assert_eq!(
       std::mem::size_of::<FooHandle>(),
       std::mem::size_of::<Option<FooHandle>>()

@@ -8,3 +8,4 @@ use_field_init_shorthand = true
 wrap_comments = true
 group_imports = "StdExternalCrate"
 format_strings = true
+overflow_delimited_expr = true
