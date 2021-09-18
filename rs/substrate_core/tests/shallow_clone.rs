@@ -85,6 +85,7 @@ macro_rules! assert_heap_allocates {
 }
 
 #[test]
+#[ignore]
 fn test_assert_alloc() {
   let x = assert_heap_allocates!({
     let mut x = Vec::new();
@@ -111,6 +112,7 @@ fn is_owned<B: ToOwned + ?Sized>(x: &Cow<B>) -> bool {
 }
 
 #[test]
+#[ignore]
 fn test_shallow_clone_cow<'a>() {
   // Creating an owned Cow alone does not allocate:
   let v: Vec<u8> = vec![1, 2, 3, 4];
