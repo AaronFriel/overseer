@@ -2,15 +2,16 @@ mod card;
 mod cardtype;
 mod characteristics;
 mod color;
-mod gamestate;
+mod game;
 mod mana_cost;
 mod object;
 mod object_color;
 mod player;
+mod state;
 mod target;
 mod zone;
 
 pub use self::{
-  card::*, cardtype::*, characteristics::*, color::*, gamestate::*, mana_cost::*, object::*,
-  object_color::*, player::*, target::*, zone::*,
+  card::*, cardtype::*, characteristics::*, color::*, game::*, mana_cost::*, object::*,
+  object_color::*, player::*, state::*, target::*, zone::*,
 };

@@ -1,9 +1,6 @@
 use std::borrow::Cow;
 
-use overseer_substrate::{
-  game::{Card, ObjectColor},
-  mana_cost, type_line,
-};
+use overseer_substrate::{game::Card, mana_cost, type_line};
 
 pub const ALSEID_OF_LIFES_BOUNTY: Card = Card {
   name: Cow::Borrowed("Alseid of Life's Bounty"),
@@ -18,7 +15,7 @@ pub const ALSEID_OF_LIFES_BOUNTY: Card = Card {
   power: 1,
   toughness: 1,
   loyalty: 0,
-  color_indicator: ObjectColor::NONE,
+  color_indicator: None,
   #[cfg(feature = "vanguard")]
   hand_modifier: 0,
   #[cfg(feature = "vanguard")]

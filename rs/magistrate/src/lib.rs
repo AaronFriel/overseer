@@ -1,6 +1,7 @@
 pub mod actions;
 pub mod cards;
-mod utils;
+pub mod interface_action;
+pub mod utils;
 
 #[cfg(test)]
 mod tests {

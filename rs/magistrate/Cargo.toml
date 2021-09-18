@@ -8,7 +8,9 @@ edition = "2018"
 crate-type = ["cdylib", "rlib"]
 
 [features]
-default = []
+default = ["server"]
+client = []
+server = ["rand"]
 vanguard = ["overseer_substrate/vanguard"]
 # default = ["console_error_panic_hook"]
 
@@ -20,8 +22,8 @@ vanguard = ["overseer_substrate/vanguard"]
 console_error_panic_hook = { version = "0.1.6", optional = true }
 dyn_partial_eq = "0.1.2"
 overseer_substrate = { path = "../substrate" }
+overseer_util = { path = "../util" }
 serde = "1.0.110"
-serde-diff = "0.4.1"
 serde_derive = "1.0.110"
 serde_json = "1.0.53"
 wasm-bindgen = "0.2.69"
@@ -32,6 +34,15 @@ wasm-bindgen = "0.2.69"
 #
 # Unfortunately, `wee_alloc` requires nightly Rust when targeting wasm for now.
 wee_alloc = { version = "0.4.5", optional = true }
+smallvec = { version = "1.6.1", features = ["serde"] }
+rand = { version = "0.8.3", optional = true, features = ["getrandom"] }
+cfg-if = "1.0.0"
+replace_with = "0.1.7"
+
+[dependencies.serde-diff]
+git = "https://github.com/AaronFriel/serde-diff"
+features = ["im", "smallvec"]
+rev = "ccef091feda60c0d195e7e87217933aef62c0f05"
 
 [dependencies.typetag]
 git = "https://github.com/AaronFriel/typetag"

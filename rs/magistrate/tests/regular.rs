@@ -7,9 +7,9 @@ use overseer_magistrate::{
   cards::{METALLIC_SLIVER, WASTES},
 };
 use overseer_substrate::{
-  action::{Action, ActionResult, PromptKind, PromptResult},
-  game::{Game, Player, StateAction},
-  interface::ChoiceOption,
+  action::{ActionErr, ActionResult, PromptKind, PromptResult, SimpleAction},
+  game::{Game, Mode, ObjectPool, Player, RegisteredCard, State, StateAction},
+  interface::{ChoiceOption, DecisionList, InterfaceError, InterfaceResult, UserInterface, YesNo},
 };
 use rand::{prelude::SliceRandom, rngs::OsRng, Rng};
 use serde::{Deserialize, Serialize};
@@ -27,152 +27,186 @@ fn serde_clone<T: Serialize + DeserializeOwned>(value: &T) -> T {
 
 #[test]
 fn foo() {
-  let game = Game::new(vec![WASTES, METALLIC_SLIVER], vec![]);
-
-  let deck: Vec<_> = iter::repeat(WASTES)
+  let deck: Vec<RegisteredCard> = iter::repeat(RegisteredCard::from(WASTES))
     .take(17)
-    .chain(iter::repeat(METALLIC_SLIVER).take(23))
+    .chain(iter::repeat(RegisteredCard::from(METALLIC_SLIVER)).take(23))
     .collect();
 
   let players = vec![
     Player::new("Friel", deck.clone(), vec![]),
     Player::new("Trevor", deck.clone(), vec![]),
   ];
-  let mut game_state = GameState {
-    game,
-    log: vec![],
-    stack: vec![StateAction::Do(StartGame::DeclarePlayers(players).into())],
-  };
 
-  while let Some(state_action) = game_state.stack.pop() {
+  let state = State::new(vec![WASTES.clone(), METALLIC_SLIVER.clone()], players);
+
+  let mut game = Game::new(
+    state,
+    Mode::Local,
+    ObjectPool::new(),
+    DecisionList::new(),
+    Vec::new(),
+    RecordingInterface::new(TestInterface::new()),
+  );
+
+  while let Some(state_action) = game.actions.pop() {
     println!("Handling state action {:?}", state_action);
-    match state_action {
-      StateAction::Do(action) => step(action, &mut game_state, PromptResult::None),
-      StateAction::Prompt(action, choice_prompt) => match choice_prompt.kind {
-        PromptKind::Select => {
-          let choices: Vec<_> = choice_prompt
-            .choices
-            .iter()
-            .map(|x| match x {
-              ChoiceOption::Player(handle) => format!("{}", handle.number()),
-              ChoiceOption::Yes => "Yes".into(),
-              ChoiceOption::No => "No".into(),
-              ChoiceOption::Object(_) => todo!(),
-              ChoiceOption::Custom(string) => string.clone(),
-            })
-            .collect();
-
-          let choice: usize = if let Some(player) = choice_prompt.player_handle {
-            Select::with_theme(&ColorfulTheme::default())
-              .with_prompt(format!(
-                "Player {}, {}",
-                player.number(),
-                choice_prompt.prompt.clone()
-              ))
-              .items(&choices)
-              .interact()
-              .unwrap()
-          } else {
-            OsRng.gen_range(0..choice_prompt.choices.len())
-          };
-
-          step(action, &mut game_state, PromptResult::Selected(choice));
-        }
-        PromptKind::MultiSelect => todo!(),
-        PromptKind::Shuffle => {
-          let mut result = (0..choice_prompt.choices.len()).collect::<Vec<_>>();
-
-          result.shuffle(&mut OsRng);
-
-          step(action, &mut game_state, PromptResult::Ordered(result));
-        }
-        PromptKind::Sort => todo!(),
-      },
-    }
+    step(state_action, &mut game);
   }
 
-  assert_yaml_snapshot!(&game_state, {
-    ".game.cards" => "$cards",
-    ".game.players[].deck" => "$deck",
-    ".game.players[].library.cards" => "$library",
-    ".game.players[].hand.cards" => "$library",
+  assert_yaml_snapshot!(game.state(), {
+    ".cards" => "$cards",
+    ".players[].deck" => "$deck",
+    ".players[].library.cards" => "$library",
+    ".players[].hand.cards" => "$library",
   }, @r###"
   ---
-  stack: []
-  log: []
-  game:
-    cards: $cards
-    players:
-      - name: Friel
-        deck: $deck
-        sideboard: []
-        library:
-          cards: $library
-          kind: Library
-        hand:
-          cards: $library
-          kind: Graveyard
-        graveyard:
-          cards: []
-          kind: Graveyard
-        life: 20
-        has_left_game: false
-        has_lost_game: false
-      - name: Trevor
-        deck: $deck
-        sideboard: []
-        library:
-          cards: $library
-          kind: Library
-        hand:
-          cards: $library
-          kind: Graveyard
-        graveyard:
-          cards: []
-          kind: Graveyard
-        life: 20
-        has_left_game: false
-        has_lost_game: false
-    active_player: 0
-    log: []
+  cards: $cards
+  players:
+    - name: Friel
+      handle: ~
+      controller: ~
+      deck: $deck
+      sideboard: []
+      library:
+        objects: []
+        count: 0
+      hand:
+        objects: []
+        count: 0
+      graveyard:
+        objects: []
+        count: 0
+      revealed: []
+      life: 20
+      has_left_game: false
+      has_lost_game: false
+    - name: Trevor
+      handle: ~
+      controller: ~
+      deck: $deck
+      sideboard: []
+      library:
+        objects: []
+        count: 0
+      hand:
+        objects: []
+        count: 0
+      graveyard:
+        objects: []
+        count: 0
+      revealed: []
+      life: 20
+      has_left_game: false
+      has_lost_game: false
+  active_player: 1
+  current_player: ~
+  battlefield:
+    objects: []
+    count: 0
+  stack:
+    objects: []
+    count: 0
+  exile:
+    objects: []
+    count: 0
+  command:
+    objects: []
+    count: 0
   "###);
 }
 
-#[derive(PartialEq, Debug, Default)]
-#[derive(Serialize, Deserialize, SerdeDiff)]
-pub struct GameState {
-  pub stack: Vec<StateAction>,
-  pub log: Vec<StateAction>,
-  pub game: Game,
-}
-
-fn step(mut action: Box<dyn Action>, game_state: &mut GameState, choice: PromptResult) {
-  println!("Stepping {:?}, choice: {:?}", action, choice);
-
-  match action.apply(&mut game_state.game, choice) {
-    ActionResult::Step => {
-      game_state.stack.push(StateAction::Do(action));
-    }
-    ActionResult::Prompt(choice_prompt) => game_state
-      .stack
-      .push(StateAction::Prompt(action, choice_prompt)),
-    ActionResult::Resolved => {
+fn step(mut action: Box<dyn SimpleAction>, mut game_state: &mut Game) {
+  println!("Stepping {:?}", action);
+  use ActionErr::*;
+  match action.perform(&mut game_state) {
+    Ok(_) => {
       // By default actions are popped off the action stack.
     }
-    ActionResult::Do(next_action) => {
-      println!("Result: Adding 1 actions to do as well");
-      game_state.stack.push(StateAction::Do(action));
-      game_state.stack.push(StateAction::Do(next_action));
+    Err(Step) => {
+      game_state.actions.push(action);
     }
-    ActionResult::DoMulti(next_actions) => {
-      println!(
-        "Result: Adding {} actions to do as well",
-        next_actions.len()
-      );
-      game_state.stack.push(StateAction::Do(action));
-      game_state
-        .stack
-        .extend(next_actions.into_iter().map(StateAction::Do))
+    Err(Waiting) => todo!(),
+  }
+}
+
+struct RecordingInterface {
+  test_interface: TestInterface,
+  cli_interface: CliInterface,
+}
+
+impl RecordingInterface {
+  fn new(test_interface: TestInterface) -> Self {
+    Self {
+      test_interface,
+      cli_interface: CliInterface,
+    }
+  }
+}
+
+impl UserInterface for RecordingInterface {
+  fn prompt_yes_no(
+    &mut self,
+    player: overseer_substrate::game::PlayerHandle,
+  ) -> InterfaceResult<YesNo> {
+    match self.test_interface.prompt_yes_no(player) {
+      Ok(value) => Ok(value),
+      Err(_) => {
+        let value = self.cli_interface.prompt_yes_no(player).unwrap();
+        self.test_interface.yes_nos.push(value);
+        Ok(value)
+      }
+    }
+  }
+}
+
+#[derive(Serialize, Deserialize)]
+struct TestInterface {
+  pub yes_no_idx: usize,
+  pub yes_nos: Vec<YesNo>,
+}
+
+impl TestInterface {
+  fn new() -> Self {
+    Self {
+      yes_no_idx: 0,
+      yes_nos: Vec::new(),
+    }
+  }
+}
+
+impl UserInterface for TestInterface {
+  fn prompt_yes_no(
+    &mut self,
+    _player: overseer_substrate::game::PlayerHandle,
+  ) -> InterfaceResult<YesNo> {
+    self
+      .yes_nos
+      .get(self.yes_no_idx)
+      .copied()
+      .ok_or(InterfaceError::Waiting)
+  }
+}
+
+struct CliInterface;
+
+impl UserInterface for CliInterface {
+  fn prompt_yes_no(
+    &mut self,
+    player: overseer_substrate::game::PlayerHandle,
+  ) -> InterfaceResult<YesNo> {
+    const YES: &str = "Yes";
+    const NO: &str = "No";
+    const ITEMS: [&str; 2] = [YES, NO];
+
+    let result = Select::with_theme(&ColorfulTheme::default())
+      .items(&ITEMS)
+      .interact()
+      .unwrap();
+
+    if ITEMS[result] == YES {
+      Ok(YesNo::Yes)
+    } else {
+      Ok(YesNo::No)
     }
   }
 }

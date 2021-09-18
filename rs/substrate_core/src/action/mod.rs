@@ -11,11 +11,58 @@ use crate::{
   interface::ChoiceOption,
 };
 
-#[derive(Clone, PartialEq, Hash, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 #[derive(Serialize, Deserialize)]
-pub enum ActionResult<T> {
+pub enum ActionErr {
   Step,
+  Waiting,
+}
+
+pub type ActionResult<T> = Result<T, ActionErr>;
+
+pub trait ActionResultLike {
+  fn as_simple(self) -> ActionResult<()>;
+}
+
+impl<T> ActionResultLike for ActionResult<T> {
+  fn as_simple(self) -> ActionResult<()> {
+    self.map(|_| ())
+  }
+}
+
+#[derive(Copy, Clone, PartialOrd, Ord, PartialEq, Eq, Hash, Debug)]
+#[derive(Serialize, Deserialize)]
+pub enum ActionThunk<T, A> {
   Resolved(T),
+  Action(A),
+}
+
+impl<T, A> From<A> for ActionThunk<T, A>
+where
+  A: ComplexAction<T>,
+{
+  fn from(action: A) -> Self {
+    ActionThunk::Action(action)
+  }
+}
+
+impl<T, A> ComplexAction<T> for ActionThunk<T, A>
+where
+  T: Debug + Clone + Copy,
+  A: ComplexAction<T>,
+{
+  fn apply(&mut self, game: &mut Game) -> ActionResult<T> {
+    match self {
+      ActionThunk::Resolved(value) => Ok(*value),
+      ActionThunk::Action(action) => {
+        let value = action.apply(game)?;
+
+        *self = ActionThunk::Resolved(value);
+
+        Ok(value)
+      }
+    }
+  }
 }
 
 #[derive(Clone, PartialEq, Hash, Debug)]
@@ -27,24 +74,10 @@ pub struct SimpleActionResult(ActionResult<()>);
 #[derive(Serialize, Deserialize, SerdeDiff)]
 #[serde_diff(opaque)]
 pub struct ChoicePrompt {
-  pub player_handle: Option<PlayerHandle>,
+  pub player: Option<PlayerHandle>,
   pub kind: PromptKind,
   pub prompt: String,
   pub choices: Vec<ChoiceOption>,
-  pub visibility: Visibility,
-}
-
-#[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
-#[derive(Serialize, Deserialize, SerdeDiff)]
-pub struct ChoicePromptTwo<T>
-where
-  for<'t> T: SerdeDiff + Serialize + Deserialize<'t>,
-{
-  pub player_handle: Option<PlayerHandle>,
-  pub kind: PromptKind,
-  pub prompt: String,
-  #[serde(bound(deserialize = "Vec<T>: Deserialize<'de>"))]
-  pub choices: Vec<T>,
   pub visibility: Visibility,
 }
 
@@ -70,20 +103,15 @@ pub enum PromptResult {
 #[dyn_partial_eq]
 #[clonable]
 pub trait SimpleAction: Debug + ActionHash + Clone {
-  fn apply(&mut self, game: &mut Game) -> ActionResult<()>;
+  fn perform(&mut self, game: &mut Game) -> ActionResult<()>;
 }
 
 pub trait ComplexAction<T>: Debug + Clone {
-  fn apply(&mut self, game: &mut Game) -> ActionResult<T>;
-}
-
-impl<T> ComplexAction<()> for T
-where
-  T: SimpleAction + Clone,
-{
-  fn apply(&mut self, game: &mut Game) -> ActionResult<()> {
-    self.apply(game)
+  fn perform(&mut self, game: &mut Game) -> ActionResult<()> {
+    self.apply(game).as_simple()
   }
+
+  fn apply(&mut self, game: &mut Game) -> ActionResult<T>;
 }
 
 pub type ActionList = Vec<Box<dyn SimpleAction>>;

@@ -8,7 +8,7 @@ use overseer_substrate_core::{
 use super::{Event, EventList};
 
 pub struct Lose {
-  pub player_handle: PlayerHandle,
+  pub player: PlayerHandle,
 }
 
 #[async_trait]
@@ -21,7 +21,7 @@ impl<S: Session> Event<S> for Lose {
 }
 
 pub struct Leave {
-  pub player_handle: PlayerHandle,
+  pub player: PlayerHandle,
 }
 
 #[async_trait]
