@@ -5,6 +5,7 @@ use std::{
   rc::{Rc, Weak},
 };
 
+use replace_with::replace_with_or_abort;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -41,7 +42,7 @@ use Entry::*;
 impl<T> Entry<T> {
   pub fn promote(&mut self) {
     use Entry::*;
-    take_mut::take(self, |this| match this {
+    replace_with_or_abort(self, |this| match this {
       Virtual { value, rc, .. } => {
         // SAFETY: Never a none stored.
         let value = value.unwrap();
@@ -104,7 +105,7 @@ impl<T> Entry<T> {
   where
     T: Clone,
   {
-    take_mut::take(self, |this| match this {
+    replace_with_or_abort(self, |this| match this {
       Virtual { value, rc, .. } => Owned {
         value: value.as_ref().unwrap().as_ref().clone(),
         rc,
@@ -139,7 +140,7 @@ impl<T> Entry<T> {
       } => (value.as_ref().unwrap(), *real_index),
       Shared { value, .. } => (value, index),
       Owned { .. } => {
-        take_mut::take(self, |this| {
+        replace_with_or_abort(self, |this| {
           if let Owned { value, rc } = this {
             Shared {
               value: Rc::new(value),
