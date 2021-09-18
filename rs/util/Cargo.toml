@@ -10,8 +10,8 @@ nonzero_ext = "~0.2.0"
 paste = "^1"
 im = { version = "^15", features = ["serde"] }
 serde = { version = "^1", features = ["derive", "rc"] }
-take_mut = "0.2.2"
 uuid = { version = "0.8.2", features = ["serde", "wasm-bindgen", "v4"] }
+replace_with = "0.1.7"
 
 [dependencies.serde-diff]
 git = "https://github.com/AaronFriel/serde-diff"

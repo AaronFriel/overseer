@@ -21,7 +21,7 @@ macro_rules! make_handle {
         use $crate::deps::nonzero_ext::NonZeroAble;
         use $crate::handle::Handle;
 
-        #[derive(Copy, Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
+        #[derive(Copy, Clone, PartialOrd, Ord, PartialEq, Eq, Hash, Debug)]
         #[derive(Serialize, Deserialize, SerdeDiff)]
         #[serde_diff(opaque)]
         pub struct $struct_name(<$size as NonZeroAble>::NonZero);
