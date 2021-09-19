@@ -15,7 +15,7 @@ const fn const_none<T>() -> Option<T> {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
-pub enum Entry<T> {
+pub enum Item<T> {
   Virtual {
     real_index: Uuid,
     /// Reference counted shared access to the underlying data.
@@ -37,11 +37,11 @@ pub enum Entry<T> {
     rc: Weak<()>,
   },
 }
-use Entry::*;
+use Item::*;
 
-impl<T> Entry<T> {
+impl<T> Item<T> {
   pub fn promote(&mut self) {
-    use Entry::*;
+    use Item::*;
     replace_with_or_abort(self, |this| match this {
       Virtual { value, rc, .. } => {
         // SAFETY: Never a none stored.
@@ -124,7 +124,7 @@ impl<T> Entry<T> {
     }
   }
 
-  pub fn ptr_eq(&self, other: &Entry<T>) -> bool {
+  pub fn ptr_eq(&self, other: &Item<T>) -> bool {
     match (self.get_value_rc(), other.get_value_rc()) {
       (None, None) => false,
       (None, Some(_)) => false,
@@ -159,7 +159,7 @@ impl<T> Entry<T> {
   }
 }
 
-impl<T> Hash for Entry<T>
+impl<T> Hash for Item<T>
 where
   T: Hash,
 {
