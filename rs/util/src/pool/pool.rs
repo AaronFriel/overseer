@@ -9,20 +9,20 @@ use im::HashMap;
 use serde::{ser::Serializer, Deserialize, Deserializer, Serialize};
 use uuid::Uuid;
 
-use super::{Entry, Entry::*, Handle};
+use super::{Handle, Item, Item::*};
 
 #[cfg(test)]
-type DefaultHasher = std::hash::BuildHasherDefault<hashers::null::PassThroughHasher>;
+pub type DefaultHasher = std::hash::BuildHasherDefault<hashers::null::PassThroughHasher>;
 #[cfg(not(test))]
-type DefaultHasher = std::collections::hash_map::RandomState;
+pub type DefaultHasher = std::collections::hash_map::RandomState;
 
 #[derive(Clone)]
 pub struct Pool<T, S = DefaultHasher> {
-  pub map: HashMap<Uuid, Entry<T>, S>,
+  pub map: HashMap<Uuid, Item<T>, S>,
 }
 
 pub struct DisassociatedPool<T, S = DefaultHasher> {
-  pub map: HashMap<Uuid, Entry<T>, S>,
+  pub map: HashMap<Uuid, Item<T>, S>,
   pub handles: std::collections::HashMap<Uuid, Handle>,
 }
 
@@ -180,7 +180,7 @@ where
   where
     D: Deserializer<'de>,
   {
-    let map = HashMap::<Uuid, Entry<T>, S>::deserialize(deserializer)?;
+    let map = HashMap::<Uuid, Item<T>, S>::deserialize(deserializer)?;
 
     Ok(Self { map })
   }
@@ -195,7 +195,7 @@ where
   where
     D: Deserializer<'de>,
   {
-    let map = HashMap::<Uuid, Entry<T>, S>::deserialize(deserializer)?;
+    let map = HashMap::<Uuid, Item<T>, S>::deserialize(deserializer)?;
     Ok(Pool { map }.to_disassociated_pool())
   }
 }

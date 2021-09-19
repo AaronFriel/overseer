@@ -1,10 +1,10 @@
-mod entry;
 mod handle;
+mod item;
 mod nonzerouuid;
 mod pool;
 
 #[doc(hidden)]
-pub use self::{entry::*, handle::*, nonzerouuid::*, pool::*};
+pub use self::{handle::*, item::*, nonzerouuid::*, pool::*};
 
 #[macro_export]
 macro_rules! make_refcounted_pool {
@@ -15,6 +15,7 @@ macro_rules! make_refcounted_pool {
         use std::num::NonZeroU128;
 
         use $crate::deps::serde::{Deserialize, Serialize};
+        use $crate::deps::uuid::Uuid;
 
         use super::$object_name as Obj;
 
@@ -32,7 +33,7 @@ macro_rules! make_refcounted_pool {
             self.0.is_weak()
           }
 
-          pub fn as_uuid(&self) -> $crate::deps::uuid::Uuid {
+          pub fn as_uuid(&self) -> Uuid {
             self.0.get_index()
           }
         }
@@ -61,7 +62,7 @@ macro_rules! make_refcounted_pool {
           fn next_index_monotonic(&mut self) -> NonZeroU128 {
             let mut index = (self.len() + 1) as u128;
 
-            while (self.pool.map.contains_key(&$crate::deps::uuid::Uuid::from_u128(index))) {
+            while (self.pool.map.contains_key(&Uuid::from_u128(index))) {
               index += 1;
             }
 
@@ -69,7 +70,7 @@ macro_rules! make_refcounted_pool {
           }
 
           fn next_index(&mut self) -> NonZeroU128 {
-            let index = $crate::deps::uuid::Uuid::new_v4();
+            let index = Uuid::new_v4();
             unsafe { NonZeroU128::new_unchecked(index.as_u128()) }
           }
 
@@ -83,13 +84,18 @@ macro_rules! make_refcounted_pool {
             self.insert_with_index(object, index)
           }
 
+          pub fn insert_at(&mut self, index: Uuid, object: Obj) -> $struct_name {
+            let index = unsafe { NonZeroU128::new_unchecked(index.as_u128()) };
+            self.insert_with_index(object, index)
+          }
+
           fn insert_with_index(&mut self, object: Obj, index: NonZeroU128) -> $struct_name {
             let (handle, weak) = $crate::pool::Handle::new_pair(index);
             let index = handle.get_index();
             self
               .pool
               .map
-              .insert(index, $crate::pool::Entry::Owned {
+              .insert(index, $crate::pool::Item::Owned {
                 value: object,
                 rc: weak,
               });
@@ -107,6 +113,11 @@ macro_rules! make_refcounted_pool {
             self.reinsert_with_index(handle, new_index)
           }
 
+          pub fn reinsert_at(&mut self, new_index: Uuid, handle: &$struct_name) -> Option<$struct_name> {
+            let new_index = unsafe { NonZeroU128::new_unchecked(new_index.as_u128()) };
+            self.reinsert_with_index(handle, new_index)
+          }
+
           fn reinsert_with_index(&mut self, $struct_name(original_handle): &$struct_name, new_index: NonZeroU128) -> Option<$struct_name> {
             let original_index = original_handle.get_index();
             let (new_handle, rc) = $crate::pool::Handle::new_pair(new_index);
@@ -118,7 +129,7 @@ macro_rules! make_refcounted_pool {
               .filter(|entry| Weak::as_ptr(entry.get_rc()) == original_handle.as_ptr())
             {
               let (value, real_index) = current_entry.share(original_index);
-              let inserted = $crate::pool::Entry::Virtual {
+              let inserted = $crate::pool::Item::Virtual {
                 value: Some(value.clone()),
                 rc,
                 real_index,
@@ -128,6 +139,10 @@ macro_rules! make_refcounted_pool {
             } else {
               None
             }
+          }
+
+          pub fn contains_key(&self, $struct_name(handle): &$struct_name) -> bool {
+            self.pool.map.contains_key(&handle.get_index())
           }
 
           pub fn get(&self, $struct_name(handle): &$struct_name) -> Option<&Obj> {
@@ -155,7 +170,7 @@ macro_rules! make_refcounted_pool {
             self.pool.collect_garbage()
           }
 
-          pub fn iter_ids(&self) -> impl Iterator<Item = ($crate::deps::uuid::Uuid, &Obj)> {
+          pub fn iter_ids(&self) -> impl Iterator<Item = (Uuid, &Obj)> {
             self.pool.iter()
           }
 
@@ -171,7 +186,7 @@ macro_rules! make_refcounted_pool {
             })
           }
 
-          pub fn into_hashmap(&self) -> std::collections::HashMap<$crate::deps::uuid::Uuid, &Obj> {
+          pub fn into_hashmap(&self) -> std::collections::HashMap<Uuid, &Obj> {
             self.pool.map.iter().map(|(k, v)| {
               (*k, v.get())
             }).collect()
@@ -209,6 +224,7 @@ mod tests {
   use std::borrow::Cow;
 
   use insta::assert_yaml_snapshot;
+  use uuid::Uuid;
 
   use crate::make_refcounted_pool;
 
@@ -294,7 +310,7 @@ mod tests {
 
     let mut layer2 = layer1.clone();
     layer2.get_mut(&handle_one).unwrap().name = Cow::Borrowed("_one_");
-    let handle_three = layer2.insert_monotonic(make_obj("3")); // We'll hold on to this until the end
+    let handle_three = layer2.insert_at(Uuid::from_u128(3), make_obj("3")); // We'll hold on to this until the end
     let handle_two_clone = handle_two.clone(); // This will keep the reference to object TWO alive to the end.
 
     // The mutation and new value are only visible in layer 2:
@@ -460,7 +476,7 @@ mod tests {
 
     let mut layer1 = FooPool::new();
     let handle_two = layer1.insert_monotonic(make_obj("TWO"));
-    let handle_two_cow = layer1.reinsert_monotonic(&handle_two).unwrap();
+    let handle_two_cow = layer1.reinsert_at(Uuid::from_u128(2), &handle_two).unwrap();
 
     assert_eq!(pool1.get(&handle_two_cow), None);
     assert_eq!(layer1.get(&handle_one_cow), None);
@@ -891,6 +907,19 @@ mod tests {
     for i in 1..=256 {
       let handle = pool.insert_monotonic(make_obj(i.to_string()));
       assert_eq!(handle.as_uuid().as_u128(), i);
+    }
+  }
+
+  #[test]
+  fn contains() {
+    let make_obj = |s: String| FooObject {
+      name: Cow::Owned(s),
+    };
+    let mut pool = FooPool::new();
+
+    for i in 1..=256 {
+      let handle = pool.insert(make_obj(i.to_string()));
+      assert!(pool.contains_key(&handle));
     }
   }
 }
