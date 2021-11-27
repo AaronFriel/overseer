@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use serde_diff::SerdeDiff;
 
-use super::ChoiceOption;
+use super::Target;
 use crate::{
   action::PromptKind,
   game::{PlayerHandle, Visibility},
@@ -13,6 +13,6 @@ pub struct Prompt {
   pub player: Option<PlayerHandle>,
   pub kind: PromptKind,
   pub prompt: String,
-  pub choices: Vec<ChoiceOption>,
+  pub choices: Vec<Target>,
   pub visibility: Visibility,
 }

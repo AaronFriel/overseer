@@ -3,9 +3,8 @@ use std::cell::{Ref, RefCell};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-  action::SimpleAction,
-  game::{ObjectPool, PlayerHandle, State},
-  interface::{Decision, DecisionHandle, DecisionList, InterfaceResult, UserInterface},
+  game::{ClientState, PlayerHandle, ServerState},
+  interface::{Decision, DecisionHandle, DecisionList, InterfaceResult, UserInterface, YesNo},
 };
 
 #[derive(Copy, Clone, Serialize, Deserialize)]
@@ -16,53 +15,47 @@ pub enum Mode {
 }
 
 pub struct Game {
-  state: State,
-  mode: Mode,
-  objects: ObjectPool,
-  pub decisions: DecisionList,
-  interface: Box<dyn UserInterface>,
-  pub actions: Vec<Box<dyn SimpleAction>>,
+  pub client: ClientState,
+  pub server: ServerState,
+  pub mode: Mode,
+  pub interface: Box<dyn UserInterface>,
+}
+
+pub enum ServerResult<T> {
+  Public(T),
+  Private(T, Vec<T>),
 }
 
 impl Game {
-  pub fn new<I>(
-    state: State,
-    mode: Mode,
-    objects: ObjectPool,
-    decisions: DecisionList,
-    actions: Vec<Box<dyn SimpleAction>>,
-    interface: I,
-  ) -> Self
+  pub fn new<I>(client: ClientState, server: ServerState, mode: Mode, interface: I) -> Self
   where
     I: UserInterface + 'static,
   {
     Self {
-      state,
+      client,
+      server,
       mode,
-      decisions,
-      objects,
-      actions,
       interface: Box::new(interface),
     }
   }
 
   /// Get a reference to the game state's game.
-  pub fn state(&self) -> &State {
-    &self.state
+  pub fn state(&self) -> &ClientState {
+    &self.client
   }
 
   /// Get a mutable reference to the game's state.
-  pub fn state_mut(&mut self) -> &mut State {
-    &mut self.state
+  pub fn state_mut(&mut self) -> &mut ClientState {
+    &mut self.client
   }
 
   /// Get a reference to the game state's decisions.
   pub fn decisions(&self) -> &DecisionList {
-    &self.decisions
+    &self.server.decisions
   }
 
   pub fn reserve_decision(&mut self) -> DecisionHandle {
-    self.decisions.reserve()
+    self.server.decisions.reserve()
   }
 
   pub fn is_server(&self) -> bool {
@@ -81,22 +74,68 @@ impl Game {
     }
   }
 
-  pub fn wrap_decision<T>(
+  pub fn server_apply<T>(
     &mut self,
-    decision_handle: &'_ DecisionHandle,
-    mut perform: impl FnMut(&State, &mut ObjectPool) -> (T, Vec<T>),
-    mut apply: impl FnMut(&mut State, &mut DecisionEntry<T>),
+    decision_handle: DecisionHandle,
+    question: impl ToString,
+    mut perform: impl FnMut(&mut ClientState, &mut ServerState) -> ServerResult<T>,
   ) -> InterfaceResult<DecisionEntry<T>>
   where
     T: Serialize,
     for<'de> T: Deserialize<'de>,
   {
-    if self.decisions.contains(decision_handle) {
-      if let Some(decision) = self.decisions.get_mut(decision_handle) {
+    if self.server.decisions.contains(decision_handle) {
+      if let Some(decision) = self.server.decisions.get_mut(decision_handle) {
+        let value = get_decision_value(decision, self.mode);
+        return Ok(DecisionEntry::new(decision, self.mode, value));
+      } else {
+        unreachable!()
+      }
+    } else {
+      cfg_if::cfg_if! {
+      if #[cfg(feature="server")] {
+        let result = perform(&mut self.client, &mut self.server);
+        let decision = match result {
+          ServerResult::Private(server_value, player_values) => self.server.decisions.set_decision(
+            decision_handle,
+            question,
+            &server_value,
+            &player_values,
+          ),
+          ServerResult::Public(value) => {
+            self
+              .server
+              .decisions
+              .set_decision_public(decision_handle, question, &value)
+          }
+        };
+        let value = get_decision_value(decision, self.mode);
+        Ok(DecisionEntry::new(decision, self.mode, value))
+        } else {
+          use crate::interface::InterfaceError::*;
+          Err(Waiting)
+        }
+      }
+    }
+  }
+
+  pub fn wrap_decision<T>(
+    &mut self,
+    decision_handle: DecisionHandle,
+    question: impl ToString,
+    mut perform: impl FnMut(&ClientState, &mut ServerState) -> (T, Vec<T>),
+    mut apply: impl FnMut(&mut ClientState, &mut DecisionEntry<T>),
+  ) -> InterfaceResult<DecisionEntry<T>>
+  where
+    T: Serialize,
+    for<'de> T: Deserialize<'de>,
+  {
+    if self.server.decisions.contains(decision_handle) {
+      if let Some(decision) = self.server.decisions.get_mut(decision_handle) {
         let value = get_decision_value(decision, self.mode);
         let mut decision_entry = DecisionEntry::new(decision, self.mode, value);
         if !decision_entry.applied() {
-          apply(&mut self.state, &mut decision_entry);
+          apply(&mut self.client, &mut decision_entry);
           decision_entry.set_applied()
         }
         Ok(decision_entry)
@@ -106,13 +145,14 @@ impl Game {
     } else {
       cfg_if::cfg_if! {
         if #[cfg(feature="server")] {
-          let (server_value, player_values) = perform(&self.state, &mut self.objects);
+          let (server_value, player_values) = perform(&self.client, &mut self.server);
           let decision = self
+            .server
             .decisions
-            .set_decision(&decision_handle, &server_value, &player_values);
+            .set_decision(decision_handle, question, &server_value, &player_values);
           let value = get_decision_value(decision, self.mode);
           let mut decision_entry = DecisionEntry::new(decision, self.mode, value);
-          apply(&mut self.state, &mut decision_entry);
+          apply(&mut self.client, &mut decision_entry);
           decision_entry.set_applied();
           Ok(decision_entry)
         } else {
@@ -125,20 +165,21 @@ impl Game {
 
   pub fn wrap_decision_public<T>(
     &mut self,
-    decision_handle: &DecisionHandle,
-    prepare: impl Fn(&State, &mut ObjectPool) -> T,
-    apply: impl Fn(&mut State, &mut DecisionEntry<T>),
+    decision_handle: DecisionHandle,
+    question: impl ToString,
+    prepare: impl Fn(&ClientState, &mut ServerState) -> T,
+    apply: impl Fn(&mut ClientState, &mut DecisionEntry<T>),
   ) -> InterfaceResult<DecisionEntry<T>>
   where
     T: Serialize,
     for<'de> T: Deserialize<'de>,
   {
-    if self.decisions.contains(decision_handle) {
-      if let Some(decision) = self.decisions.get_mut(decision_handle) {
+    if self.server.decisions.contains(decision_handle) {
+      if let Some(decision) = self.server.decisions.get_mut(decision_handle) {
         let value = decision.get_server_decision().unwrap();
         let mut decision_entry = DecisionEntry::new(decision, self.mode, value);
         if !decision_entry.applied() {
-          apply(&mut self.state, &mut decision_entry);
+          apply(&mut self.client, &mut decision_entry);
           decision_entry.set_applied()
         }
         Ok(decision_entry)
@@ -148,10 +189,10 @@ impl Game {
     } else {
       cfg_if::cfg_if! {
         if #[cfg(feature="server")] {
-          let value = prepare(&self.state, &mut self.objects);
-          let decision = self.decisions.set_decision_public(&decision_handle, &value);
+          let value = prepare(&self.client, &mut self.server);
+          let decision = self.server.decisions.set_decision_public(decision_handle, question, &value);
           let mut decision_entry = DecisionEntry::new(decision, self.mode, value);
-          apply(&mut self.state, &mut decision_entry);
+          apply(&mut self.client, &mut decision_entry);
           decision_entry.set_applied();
           Ok(decision_entry)
         } else {
@@ -162,22 +203,21 @@ impl Game {
     }
   }
 
-  pub fn wrap_prompt_public<T>(
+  pub fn prompt_yes_no(
     &mut self,
-    decision_handle: &DecisionHandle,
-    prepare: impl Fn(&State, &mut dyn UserInterface) -> InterfaceResult<T>,
-    apply: impl Fn(&mut State, &mut DecisionEntry<T>),
-  ) -> InterfaceResult<DecisionEntry<T>>
-  where
-    T: Serialize,
-    for<'de> T: Deserialize<'de>,
-  {
-    if self.decisions.contains(decision_handle) {
-      if let Some(decision) = self.decisions.get_mut(decision_handle) {
+    decision_handle: DecisionHandle,
+    question: impl ToString,
+    player: PlayerHandle,
+    apply: impl Fn(&mut ClientState, &mut DecisionEntry<YesNo>),
+  ) -> InterfaceResult<DecisionEntry<YesNo>> {
+    let prompt = question.to_string();
+
+    if self.server.decisions.contains(decision_handle) {
+      if let Some(decision) = self.server.decisions.get_mut(decision_handle) {
         let value = decision.get_server_decision().unwrap();
         let mut decision_entry = DecisionEntry::new(decision, self.mode, value);
         if !decision_entry.applied() {
-          apply(&mut self.state, &mut decision_entry);
+          apply(&mut self.client, &mut decision_entry);
           decision_entry.set_applied()
         }
         Ok(decision_entry)
@@ -185,11 +225,55 @@ impl Game {
         unreachable!()
       }
     } else {
-      match prepare(&mut self.state, &mut *self.interface) {
+      match self.interface.prompt_yes_no(&self.client, player, &prompt) {
         Ok(value) => {
-          let decision = self.decisions.set_decision_public(&decision_handle, &value);
+          let decision = self
+            .server
+            .decisions
+            .set_decision_public(decision_handle, prompt, &value);
           let mut decision_entry = DecisionEntry::new(decision, self.mode, value);
-          apply(&mut self.state, &mut decision_entry);
+          apply(&mut self.client, &mut decision_entry);
+          decision_entry.set_applied();
+          Ok(decision_entry)
+        }
+        Err(e) => Err(e),
+      }
+    }
+  }
+
+  pub fn wrap_prompt_public<T>(
+    &mut self,
+    decision_handle: DecisionHandle,
+    question: impl ToString,
+    prepare: impl Fn(&ClientState, &mut dyn UserInterface) -> InterfaceResult<T>,
+    apply: impl Fn(&mut ClientState, &mut DecisionEntry<T>),
+  ) -> InterfaceResult<DecisionEntry<T>>
+  where
+    T: Serialize,
+    for<'de> T: Deserialize<'de>,
+  {
+    if self.server.decisions.contains(decision_handle) {
+      if let Some(decision) = self.server.decisions.get_mut(decision_handle) {
+        let value = decision.get_server_decision().unwrap();
+        let mut decision_entry = DecisionEntry::new(decision, self.mode, value);
+        if !decision_entry.applied() {
+          apply(&mut self.client, &mut decision_entry);
+          decision_entry.set_applied()
+        }
+        Ok(decision_entry)
+      } else {
+        unreachable!()
+      }
+    } else {
+      match prepare(&mut self.client, &mut *self.interface) {
+        Ok(value) => {
+          let decision =
+            self
+              .server
+              .decisions
+              .set_decision_public(decision_handle, question, &value);
+          let mut decision_entry = DecisionEntry::new(decision, self.mode, value);
+          apply(&mut self.client, &mut decision_entry);
           decision_entry.set_applied();
           Ok(decision_entry)
         }

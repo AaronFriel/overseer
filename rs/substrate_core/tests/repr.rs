@@ -2,8 +2,8 @@ use std::{borrow::Cow, convert::TryFrom};
 
 use insta::{assert_display_snapshot, assert_snapshot, assert_yaml_snapshot};
 use overseer_substrate_core::game::{
-  Battlefield, Card, CardSubtype, CreatureType, CustomSubtype, ManaCost, ManaCostPip, Object,
-  ObjectColor, ObjectKind, ObjectPool, Player, PredefinedSubtype, RegisteredCard, State, Status,
+  Battlefield, Card, CardSubtype, ClientState, CreatureType, CustomSubtype, ManaCost, ManaCostPip,
+  Object, ObjectColor, ObjectKind, ObjectPool, Player, PredefinedSubtype, RegisteredCard, Status,
   TypeLine, Zone,
 };
 
@@ -51,7 +51,7 @@ fn player_repr() {
 
 #[test]
 fn player_handle_repr() {
-  let game = State::new(vec![], vec![make_player()]);
+  let game = ClientState::new(vec![], vec![make_player()]);
 
   assert_yaml_snapshot!(game.active_player, @r###"
   ---
@@ -62,7 +62,8 @@ fn player_handle_repr() {
 #[test]
 fn game_repr() {
   let mut objects = ObjectPool::new();
-  let mut game: State = State::new(vec![], vec![named_player("First"), named_player("Second")]);
+  let mut game: ClientState =
+    ClientState::new(vec![], vec![named_player("First"), named_player("Second")]);
 
   let handle = objects.insert_monotonic(Object {
     kind: ObjectKind::Card,
@@ -120,6 +121,7 @@ fn game_repr() {
       has_lost_game: false
   active_player: 1
   current_player: ~
+  objects: {}
   battlefield:
     objects: []
     count: 0
@@ -138,7 +140,8 @@ fn game_repr() {
 #[test]
 fn game_view_as_repr() {
   let mut objects = ObjectPool::new();
-  let mut game: State = State::new(vec![], vec![named_player("First"), named_player("Second")]);
+  let mut game: ClientState =
+    ClientState::new(vec![], vec![named_player("First"), named_player("Second")]);
   let handle = objects.insert_monotonic(Object {
     kind: ObjectKind::Card,
     characteristics: None,
@@ -196,6 +199,7 @@ fn game_view_as_repr() {
       has_lost_game: false
   active_player: 1
   current_player: 2
+  objects: {}
   battlefield:
     objects: []
     count: 0

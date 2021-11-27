@@ -8,7 +8,7 @@ use serde_diff::SerdeDiff;
 
 use crate::{
   game::{Game, PlayerHandle, Visibility},
-  interface::ChoiceOption,
+  interface::Target,
 };
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
@@ -77,7 +77,7 @@ pub struct ChoicePrompt {
   pub player: Option<PlayerHandle>,
   pub kind: PromptKind,
   pub prompt: String,
-  pub choices: Vec<ChoiceOption>,
+  pub choices: Vec<Target>,
   pub visibility: Visibility,
 }
 

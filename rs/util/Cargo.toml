@@ -10,8 +10,8 @@ nonzero_ext = "~0.3.0"
 paste = "^1"
 im = { version = "^15", features = ["serde"] }
 serde = { version = "^1", features = ["derive", "rc"] }
-uuid = { version = "0.8.2", features = ["serde", "wasm-bindgen", "v4"] }
-replace_with = "0.1.7"
+uuid = { version = "~0.8.2", features = ["serde", "wasm-bindgen", "v4"] }
+replace_with = "~0.1.7"
 
 [dependencies.serde-diff]
 git = "https://github.com/AaronFriel/serde-diff"
@@ -19,6 +19,6 @@ features = ["im", "smallvec"]
 rev = "ccef091feda60c0d195e7e87217933aef62c0f05"
 
 [dev-dependencies]
-insta = { version = "^1.7.1", features = ["ron"]}
+insta = { version = "^1.8.0", features = ["ron"]}
 serde_json = "^1.0.64"
 hashers = "^1.0.1"

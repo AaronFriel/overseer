@@ -6,7 +6,7 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = "1.0.41"
+anyhow = "^1.0.41"
 overseer_substrate_core = { path = "../substrate_core" }
 proc-macro2 = "^1.0"
 quote = "^1.0"
