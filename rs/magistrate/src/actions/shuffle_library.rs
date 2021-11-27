@@ -29,7 +29,8 @@ impl SimpleAction for ShuffleLibrary {
     use ActionErr::*;
 
     if let Ok(_) = game.wrap_decision_public(
-      &self.decision,
+      self.decision,
+      "",
       |game, objects| perform(game, objects, self.player),
       |game, library| {
         let player = game.get_player_mut(self.player);
@@ -44,7 +45,7 @@ impl SimpleAction for ShuffleLibrary {
 }
 
 #[cfg(feature = "server")]
-fn perform(game: &State, objects: &mut ObjectPool, player: PlayerHandle) -> Zone<Library> {
+fn perform(game: &ClientState, objects: &mut ObjectPool, player: PlayerHandle) -> Zone<Library> {
   use rand::{prelude::SliceRandom, rngs::OsRng};
 
   let mut library: Vec<_> = game
@@ -63,6 +64,6 @@ fn perform(game: &State, objects: &mut ObjectPool, player: PlayerHandle) -> Zone
 }
 
 #[cfg(not(feature = "server"))]
-fn perform(game: &State, player: PlayerHandle) -> Zone<Library> {
+fn perform(game: &ClientState, player: PlayerHandle) -> Zone<Library> {
   unimplemented!()
 }

@@ -35,7 +35,8 @@ impl SimpleAction for ShuffleHandIntoLibrary {
     let player_handle = self.player;
 
     if let Ok(_) = game.wrap_decision_public(
-      &self.decision,
+      self.decision,
+      "",
       |game, objects| perform(game, objects, player_handle),
       |game, library| {
         let player = game.get_player_mut(player_handle);
@@ -55,7 +56,7 @@ impl SimpleAction for ShuffleHandIntoLibrary {
 }
 
 #[cfg(feature = "server")]
-fn perform(state: &State, objects: &mut ObjectPool, player: PlayerHandle) -> Zone<Library> {
+fn perform(state: &ClientState, objects: &mut ObjectPool, player: PlayerHandle) -> Zone<Library> {
   #[cfg(feature = "server")]
   use rand::{prelude::SliceRandom, rngs::OsRng};
 
@@ -72,6 +73,6 @@ fn perform(state: &State, objects: &mut ObjectPool, player: PlayerHandle) -> Zon
 }
 
 #[cfg(not(feature = "server"))]
-fn perform(game: &State, player: PlayerHandle) -> Zone<Library> {
+fn perform(game: &ClientState, player: PlayerHandle) -> Zone<Library> {
   unimplemented!()
 }

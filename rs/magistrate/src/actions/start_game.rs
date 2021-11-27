@@ -9,10 +9,9 @@ use serde::{Deserialize, Serialize};
 #[derive(Copy, Clone, PartialOrd, Ord, PartialEq, Eq, Hash, Debug)]
 #[derive(DynPartialEq, Serialize, Deserialize)]
 pub struct StartGame {
-  state: StartGameState,
   roll_for_first_player: ActionThunk<PlayerHandle, DetermineFirstPlayer>,
-  accept_first_player: ActionThunk<PlayerHandle, AcceptFirstPlayer>,
-  perform_mulligans: ActionThunk<PlayerHandle, AcceptFirstPlayer>,
+  accept_first_player: Option<ActionThunk<PlayerHandle, AcceptFirstPlayer>>,
+  // perform_mulligans: ActionThunk<PlayerHandle, AcceptFirstPlayer>,
 }
 
 #[derive(Copy, Clone, PartialOrd, Ord, PartialEq, Eq, Hash, Debug)]
@@ -24,10 +23,9 @@ enum StartGameState {
 impl StartGame {
   pub fn new(game: &mut Game) -> StartGame {
     Self {
-      state: StartGameState::Roll(DetermineFirstPlayer::new(game)),
-      roll_for_first_player: todo!(),
-      accept_first_player: todo!(),
-      perform_mulligans: todo!(),
+      roll_for_first_player: ActionThunk::Action(DetermineFirstPlayer::new(game)),
+      accept_first_player: None,
+      // perform_mulligans: todo!(),
     }
   }
 }
@@ -39,9 +37,16 @@ impl SimpleAction for StartGame {
 
     let first_player = self.roll_for_first_player.apply(game)?;
 
-    let first_player = self.accept_first_player.apply(game)?;
+    game.state_mut().set_active_player(first_player);
+
+    let first_player = self
+      .accept_first_player
+      .get_or_insert_with(|| AcceptFirstPlayer::new(game, first_player).into())
+      .apply(game)?;
 
     game.state_mut().set_active_player(first_player);
+
+    // let first_player = self.accept_first_player.apply(game)?;
 
     // replace_with_or_abort_and_return(self, |this| match this.state {
     //   StartGameState::Roll(action) => {
@@ -50,7 +55,7 @@ impl SimpleAction for StartGame {
     //   }
     //   _ => (Step, this),
     // })
-    todo!()
+    Ok(())
     // match &mut *self {
     //   (DeclarePlayers(ref mut players), _) => {
     //     println!("Adding players");
@@ -218,7 +223,8 @@ impl ComplexAction<PlayerHandle> for DetermineFirstPlayer {
     use ActionErr::*;
 
     if let Ok(x) = game.wrap_decision_public(
-      &self.decision,
+      self.decision,
+      "Who wins the die roll?",
       |state, _| perform_determine_first(state),
       |state, decision| state.set_active_player(decision.copied()),
     ) {
@@ -230,7 +236,7 @@ impl ComplexAction<PlayerHandle> for DetermineFirstPlayer {
 }
 
 #[cfg(feature = "server")]
-fn perform_determine_first(state: &State) -> PlayerHandle {
+fn perform_determine_first(state: &ClientState) -> PlayerHandle {
   use rand::{prelude::SliceRandom, rngs::OsRng};
 
   let mut players: Vec<_> = state.get_players().collect();
@@ -240,7 +246,7 @@ fn perform_determine_first(state: &State) -> PlayerHandle {
 }
 
 #[cfg(not(feature = "server"))]
-fn perform_determine_first(state: &State) -> Option<PlayerHandle> {
+fn perform_determine_first(state: &ClientState) -> Option<PlayerHandle> {
   unimplemented!()
 }
 
@@ -250,6 +256,16 @@ struct AcceptFirstPlayer {
   first_player: PlayerHandle,
   current_player: PlayerHandle,
   decision: DecisionHandle,
+}
+
+impl AcceptFirstPlayer {
+  fn new(game: &mut Game, first_player: PlayerHandle) -> Self {
+    Self {
+      first_player,
+      current_player: first_player,
+      decision: game.reserve_decision(),
+    }
+  }
 }
 
 impl ComplexAction<PlayerHandle> for AcceptFirstPlayer {
@@ -266,20 +282,23 @@ impl ComplexAction<PlayerHandle> for AcceptFirstPlayer {
     }
 
     let accepted = game
-      .wrap_prompt_public(
-        &self.decision,
-        |_, interface| {
-          interface
-            .prompt_yes_no(current_player)
-            .map(|yesno| yesno == Yes)
-        },
+      .prompt_yes_no(
+        self.decision,
+        format!(
+          "Player {}, {}, you've won the die roll, do you want to go first?",
+          self.current_player,
+          game.state().get_player(current_player).name
+        ),
+        current_player,
         |_, _| {},
       )
       .map_err(|_| Waiting)?
-      .copied();
+      .copied()
+      == Yes;
 
     if !accepted {
       self.current_player = next_player;
+      self.decision = game.reserve_decision();
 
       return Err(Step);
     }

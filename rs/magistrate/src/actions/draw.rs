@@ -1,7 +1,7 @@
 use dyn_partial_eq::DynPartialEq;
 use overseer_substrate::{
   action::*,
-  game::{PlayerHandle, State, *},
+  game::{ClientState, PlayerHandle, *},
   interface::DecisionHandle,
 };
 use serde::{Deserialize, Serialize};
@@ -78,7 +78,11 @@ impl ComplexAction<Option<ObjectHandle>> for DrawOne {
     use ActionErr::*;
 
     if let Ok(result) = game.wrap_decision_public(
-      &self.decision,
+      self.decision,
+      format!(
+        "Player {} draws?",
+        game.state().get_player(self.player).name,
+      ),
       |state, objects| server_side_draw(state, objects, self.player),
       |state, result| {
         if let Some((card_to_remove, hand)) = result.cloned() {
@@ -104,7 +108,7 @@ impl ComplexAction<Option<ObjectHandle>> for DrawOne {
 
 #[cfg(feature = "server")]
 fn server_side_draw(
-  game: &State,
+  game: &ClientState,
   objects: &mut ObjectPool,
   player: PlayerHandle,
 ) -> Option<(ObjectHandle, Zone<Hand>)> {

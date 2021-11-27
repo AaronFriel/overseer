@@ -29,7 +29,8 @@ impl SimpleAction for SetupLibrary {
     use ActionErr::*;
 
     if let Ok(_) = game.wrap_decision_public(
-      &self.decision,
+      self.decision,
+      "",
       |state, objects| server_side_setup(state, objects, self.player),
       |state, library| {
         let player = state.get_player_mut(self.player);
@@ -45,7 +46,7 @@ impl SimpleAction for SetupLibrary {
 
 #[cfg(feature = "server")]
 fn server_side_setup(
-  state: &State,
+  state: &ClientState,
   objects: &mut ObjectPool,
   player: PlayerHandle,
 ) -> Zone<Library> {
@@ -65,6 +66,6 @@ fn server_side_setup(
 }
 
 #[cfg(not(feature = "server"))]
-fn server_side_setup(game: &State, player: PlayerHandle) -> Zone<Library> {
+fn server_side_setup(game: &ClientState, player: PlayerHandle) -> Zone<Library> {
   unimplemented!()
 }

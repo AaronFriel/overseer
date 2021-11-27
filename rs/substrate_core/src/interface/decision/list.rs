@@ -20,6 +20,13 @@ impl DecisionList {
     }
   }
 
+  pub fn from_entries(entries: Vec<Option<Decision>>) -> Self {
+    DecisionList {
+      entries,
+      reserved: 0,
+    }
+  }
+
   pub fn reserve(&mut self) -> DecisionHandle {
     let reserved = self.reserved;
     self.reserved += 1;
@@ -31,18 +38,19 @@ impl DecisionList {
     self.reserved = 0;
   }
 
-  pub(crate) fn contains(&self, decision: &DecisionHandle) -> bool {
+  pub(crate) fn contains(&self, decision: DecisionHandle) -> bool {
     self.entries.len() > decision.to_index()
   }
 
-  pub(crate) fn get(&self, decision: &DecisionHandle) -> Option<&Decision> {
+  #[allow(dead_code)]
+  pub(crate) fn get(&self, decision: DecisionHandle) -> Option<&Decision> {
     self
       .entries
       .get(decision.to_index())
       .and_then(Option::as_ref)
   }
 
-  pub(crate) fn get_mut(&mut self, decision: &DecisionHandle) -> Option<&mut Decision> {
+  pub(crate) fn get_mut(&mut self, decision: DecisionHandle) -> Option<&mut Decision> {
     self
       .entries
       .get_mut(decision.to_index())
@@ -51,24 +59,26 @@ impl DecisionList {
 
   pub(crate) fn set_decision<'a, T: 'a + Serialize + ?Sized>(
     &mut self,
-    decision: &DecisionHandle,
+    decision: DecisionHandle,
+    question: impl ToString,
     server_value: &T,
     player_values: impl IntoIterator<Item = &'a T>,
   ) -> &mut Decision {
     let index = decision.to_index();
     self.entries.resize_with(index + 1, Default::default);
-    self.entries[index] = Some(Decision::new(server_value, player_values));
+    self.entries[index] = Some(Decision::new(question, server_value, player_values));
     self.entries[index].as_mut().unwrap()
   }
 
   pub(crate) fn set_decision_public<'a, T: Serialize + ?Sized>(
     &mut self,
-    decision: &DecisionHandle,
+    decision: DecisionHandle,
+    question: impl ToString,
     value: &T,
   ) -> &mut Decision {
     let index = decision.to_index();
     self.entries.resize_with(index + 1, Default::default);
-    self.entries[index] = Some(Decision::new_public(value));
+    self.entries[index] = Some(Decision::new_public(question, value));
     self.entries[index].as_mut().unwrap()
   }
 }
@@ -101,18 +111,22 @@ mod tests {
     let handle_one = list.reserve();
     let handle_two = list.reserve();
 
-    list.set_decision(&handle_one, &make_decision(1), [&make_decision(2)]);
-    list.set_decision_public(&handle_two, &make_decision(3));
+    list.set_decision(handle_one, "Test one", &make_decision(1), [&make_decision(
+      2,
+    )]);
+    list.set_decision_public(handle_two, "Test two", &make_decision(3));
 
     assert_yaml_snapshot!(list, @r###"
     ---
     entries:
       - Private:
+          question: Test one
           server_value: "{\"a\":1,\"b\":\"1\"}"
           player_values:
             - "{\"a\":2,\"b\":\"2\"}"
           applied: false
       - Public:
+          question: Test two
           value: "{\"a\":3,\"b\":\"3\"}"
           applied: false
     reserved: 2
@@ -125,11 +139,13 @@ mod tests {
 ---
 entries:
   - Private:
+      question: Test one
       server_value: "{\"a\":1,\"b\":\"1\"}"
       player_values:
         - "{\"a\":2,\"b\":\"2\"}"
       applied: true
   - Public:
+      question: Test two
       value: "{\"a\":3,\"b\":\"3\"}"
       applied: false
 reserved: 2
@@ -145,7 +161,7 @@ reserved: 2
     let handles = hashset![&handle_one, &handle_two, &handle_three];
     assert_eq!(handles.len(), 3);
 
-    let get_decision_pair = |handle: &DecisionHandle| {
+    let get_decision_pair = |handle: DecisionHandle| {
       (
         list
           .get(handle)
@@ -160,7 +176,7 @@ reserved: 2
       )
     };
 
-    assert_debug_snapshot!(get_decision_pair(&handle_one), @r###"
+    assert_debug_snapshot!(get_decision_pair(handle_one), @r###"
     (
         SimpleDecision {
             a: 1,
@@ -174,7 +190,7 @@ reserved: 2
     "###
     );
 
-    assert_debug_snapshot!(get_decision_pair(&handle_two), @r###"
+    assert_debug_snapshot!(get_decision_pair(handle_two), @r###"
     (
         SimpleDecision {
             a: 3,
@@ -188,6 +204,6 @@ reserved: 2
     "###
     );
 
-    assert_debug_snapshot!(list.get(&handle_three), @"None");
+    assert_debug_snapshot!(list.get(handle_three), @"None");
   }
 }

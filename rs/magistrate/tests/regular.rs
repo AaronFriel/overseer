@@ -1,19 +1,17 @@
-use std::iter;
+use std::{cell::RefCell, iter, rc::Rc};
 
 use dialoguer::{theme::ColorfulTheme, Select};
-use insta::assert_yaml_snapshot;
+use insta::{assert_ron_snapshot, assert_yaml_snapshot};
 use overseer_magistrate::{
   actions::StartGame,
   cards::{METALLIC_SLIVER, WASTES},
 };
 use overseer_substrate::{
-  action::{ActionErr, ActionResult, PromptKind, PromptResult, SimpleAction},
-  game::{Game, Mode, ObjectPool, Player, RegisteredCard, State, StateAction},
-  interface::{ChoiceOption, DecisionList, InterfaceError, InterfaceResult, UserInterface, YesNo},
+  action::{ActionErr, SimpleAction},
+  game::{ClientState, Game, Mode, ObjectPool, Player, PlayerHandle, RegisteredCard, ServerState},
+  interface::{DecisionList, InterfaceError, InterfaceResult, Target, UserInterface, YesNo},
 };
-use rand::{prelude::SliceRandom, rngs::OsRng, Rng};
 use serde::{Deserialize, Serialize};
-use serde_diff::SerdeDiff;
 
 /*
 use serde::de::DeserializeOwned;
@@ -34,108 +32,227 @@ fn foo() {
 
   let players = vec![
     Player::new("Friel", deck.clone(), vec![]),
+    Player::new("Kyle", deck.clone(), vec![]),
     Player::new("Trevor", deck.clone(), vec![]),
+    Player::new("Karl", deck.clone(), vec![]),
   ];
 
-  let state = State::new(vec![WASTES.clone(), METALLIC_SLIVER.clone()], players);
+  let client_state = ClientState::new(vec![WASTES.clone(), METALLIC_SLIVER.clone()], players);
 
+  let actions: Vec<Box<dyn SimpleAction>> = serde_yaml::from_str(
+    r###"
+entries:
+- Public:
+    question: Who wins the die roll?
+    value: "4"
+    applied: false
+- Public:
+    question: "Player 4, Karl, you've won the die roll, do you want to go first?"
+    value: "\"No\""
+    applied: false
+- Public:
+    question: "Player 1, Friel, you've won the die roll, do you want to go first?"
+    value: "\"No\""
+    applied: false
+- Public:
+    question: "Player 2, Kyle, you've won the die roll, do you want to go first?"
+    value: "\"Yes\""
+    applied: false
+reserved: 0
+  "###,
+  )
+  .unwrap();
+
+  let server_state = ServerState::new(ObjectPool::new(), DecisionList::new(), actions);
+
+  let test_interface = Rc::new(RefCell::new(TestInterface::new()));
   let mut game = Game::new(
-    state,
+    client_state,
+    server_state,
     Mode::Local,
-    ObjectPool::new(),
-    DecisionList::new(),
-    Vec::new(),
-    RecordingInterface::new(TestInterface::new()),
+    // DecisionList::from_entries(vec![Some(Decision::Public {
+    //   question: "Who wins the die roll?".to_string(),
+    //   value: "1".to_string(),
+    //   applied: false,
+    // })]),
+    RecordingInterface::new(test_interface.clone()),
   );
 
-  while let Some(state_action) = game.actions.pop() {
+  let action: Box<dyn SimpleAction> = Box::new(StartGame::new(&mut game));
+
+  game.server.actions.push(action);
+
+  while let Some(state_action) = game.server.actions.pop() {
     println!("Handling state action {:?}", state_action);
     step(state_action, &mut game);
   }
 
-  assert_yaml_snapshot!(game.state(), {
+  assert_yaml_snapshot!(game.server.decisions, @r###"
+  ---
+  entries:
+    - Public:
+        question: Who wins the die roll?
+        value: "4"
+        applied: true
+    - Public:
+        question: "Player 4, Karl, you've won the die roll, do you want to go first?"
+        value: "\"No\""
+        applied: true
+    - Public:
+        question: "Player 1, Friel, you've won the die roll, do you want to go first?"
+        value: "\"No\""
+        applied: true
+    - Public:
+        question: "Player 2, Kyle, you've won the die roll, do you want to go first?"
+        value: "\"Yes\""
+        applied: true
+  reserved: 4
+  "###);
+
+  assert_ron_snapshot!(game.state(), {
     ".cards" => "$cards",
     ".players[].deck" => "$deck",
     ".players[].library.cards" => "$library",
     ".players[].hand.cards" => "$library",
   }, @r###"
-  ---
-  cards: $cards
-  players:
-    - name: Friel
-      handle: ~
-      controller: ~
-      deck: $deck
-      sideboard: []
-      library:
-        objects: []
-        count: 0
-      hand:
-        objects: []
-        count: 0
-      graveyard:
-        objects: []
-        count: 0
-      revealed: []
-      life: 20
-      has_left_game: false
-      has_lost_game: false
-    - name: Trevor
-      handle: ~
-      controller: ~
-      deck: $deck
-      sideboard: []
-      library:
-        objects: []
-        count: 0
-      hand:
-        objects: []
-        count: 0
-      graveyard:
-        objects: []
-        count: 0
-      revealed: []
-      life: 20
-      has_left_game: false
-      has_lost_game: false
-  active_player: 1
-  current_player: ~
-  battlefield:
-    objects: []
-    count: 0
-  stack:
-    objects: []
-    count: 0
-  exile:
-    objects: []
-    count: 0
-  command:
-    objects: []
-    count: 0
+  State(
+    cards: "$cards",
+    players: [
+      Player(
+        name: "Friel",
+        handle: None,
+        controller: None,
+        deck: "$deck",
+        sideboard: [],
+        library: Zone(
+          objects: [],
+          count: 0,
+        ),
+        hand: Zone(
+          objects: [],
+          count: 0,
+        ),
+        graveyard: Zone(
+          objects: [],
+          count: 0,
+        ),
+        revealed: [],
+        life: 20,
+        has_left_game: false,
+        has_lost_game: false,
+      ),
+      Player(
+        name: "Kyle",
+        handle: None,
+        controller: None,
+        deck: "$deck",
+        sideboard: [],
+        library: Zone(
+          objects: [],
+          count: 0,
+        ),
+        hand: Zone(
+          objects: [],
+          count: 0,
+        ),
+        graveyard: Zone(
+          objects: [],
+          count: 0,
+        ),
+        revealed: [],
+        life: 20,
+        has_left_game: false,
+        has_lost_game: false,
+      ),
+      Player(
+        name: "Trevor",
+        handle: None,
+        controller: None,
+        deck: "$deck",
+        sideboard: [],
+        library: Zone(
+          objects: [],
+          count: 0,
+        ),
+        hand: Zone(
+          objects: [],
+          count: 0,
+        ),
+        graveyard: Zone(
+          objects: [],
+          count: 0,
+        ),
+        revealed: [],
+        life: 20,
+        has_left_game: false,
+        has_lost_game: false,
+      ),
+      Player(
+        name: "Karl",
+        handle: None,
+        controller: None,
+        deck: "$deck",
+        sideboard: [],
+        library: Zone(
+          objects: [],
+          count: 0,
+        ),
+        hand: Zone(
+          objects: [],
+          count: 0,
+        ),
+        graveyard: Zone(
+          objects: [],
+          count: 0,
+        ),
+        revealed: [],
+        life: 20,
+        has_left_game: false,
+        has_lost_game: false,
+      ),
+    ],
+    active_player: Some(PlayerHandle(2)),
+    current_player: None,
+    objects: {},
+    battlefield: Zone(
+      objects: [],
+      count: 0,
+    ),
+    stack: Zone(
+      objects: [],
+      count: 0,
+    ),
+    exile: Zone(
+      objects: [],
+      count: 0,
+    ),
+    command: Zone(
+      objects: [],
+      count: 0,
+    ),
+  )
   "###);
 }
 
-fn step(mut action: Box<dyn SimpleAction>, mut game_state: &mut Game) {
+fn step(mut action: Box<dyn SimpleAction>, mut game: &mut Game) {
   println!("Stepping {:?}", action);
   use ActionErr::*;
-  match action.perform(&mut game_state) {
-    Ok(_) => {
-      // By default actions are popped off the action stack.
-    }
+  match action.perform(&mut game) {
+    Ok(()) => {}
     Err(Step) => {
-      game_state.actions.push(action);
+      game.server.actions.push(action);
     }
     Err(Waiting) => todo!(),
   }
 }
 
 struct RecordingInterface {
-  test_interface: TestInterface,
+  test_interface: Rc<RefCell<TestInterface>>,
   cli_interface: CliInterface,
 }
 
 impl RecordingInterface {
-  fn new(test_interface: TestInterface) -> Self {
+  fn new(test_interface: Rc<RefCell<TestInterface>>) -> Self {
     Self {
       test_interface,
       cli_interface: CliInterface,
@@ -146,13 +263,38 @@ impl RecordingInterface {
 impl UserInterface for RecordingInterface {
   fn prompt_yes_no(
     &mut self,
+    state: &ClientState,
     player: overseer_substrate::game::PlayerHandle,
+    prompt: &str,
   ) -> InterfaceResult<YesNo> {
-    match self.test_interface.prompt_yes_no(player) {
+    let mut test_interface = self.test_interface.borrow_mut();
+
+    match test_interface.prompt_yes_no(state, player, prompt) {
       Ok(value) => Ok(value),
       Err(_) => {
-        let value = self.cli_interface.prompt_yes_no(player).unwrap();
-        self.test_interface.yes_nos.push(value);
+        let value = self.cli_interface.prompt_yes_no(state, player, prompt)?;
+        test_interface.push_yes_no(value);
+        Ok(value)
+      }
+    }
+  }
+
+  fn prompt_target_select(
+    &mut self,
+    state: &ClientState,
+    objects: &ObjectPool,
+    player: overseer_substrate::game::PlayerHandle,
+    targets: &[Target],
+  ) -> InterfaceResult<Target> {
+    let mut test_interface = self.test_interface.borrow_mut();
+    match test_interface.prompt_target_select(state, objects, player, targets) {
+      Ok(value) => Ok(value),
+      Err(_) => {
+        let value = self
+          .cli_interface
+          .prompt_target_select(state, objects, player, targets)
+          .unwrap();
+        test_interface.push_target_selection(value.clone());
         Ok(value)
       }
     }
@@ -161,8 +303,10 @@ impl UserInterface for RecordingInterface {
 
 #[derive(Serialize, Deserialize)]
 struct TestInterface {
-  pub yes_no_idx: usize,
-  pub yes_nos: Vec<YesNo>,
+  yes_no_idx: usize,
+  yes_nos: Vec<YesNo>,
+  target_selection_idx: usize,
+  target_selections: Vec<Target>,
 }
 
 impl TestInterface {
@@ -170,19 +314,55 @@ impl TestInterface {
     Self {
       yes_no_idx: 0,
       yes_nos: Vec::new(),
+      target_selection_idx: 0,
+      target_selections: Vec::new(),
     }
+  }
+
+  pub fn get_yes_no(&self) -> &YesNo {
+    &self.yes_nos[self.yes_no_idx]
+  }
+
+  pub fn push_yes_no(&mut self, value: YesNo) {
+    self.yes_nos.push(value);
+    self.yes_no_idx = self.yes_no_idx + 1;
+  }
+
+  pub fn get_target_selection(&self) -> &Target {
+    &self.target_selections[self.target_selection_idx]
+  }
+
+  pub fn push_target_selection(&mut self, value: Target) {
+    self.target_selections.push(value);
+    self.target_selection_idx = self.target_selection_idx + 1;
   }
 }
 
 impl UserInterface for TestInterface {
   fn prompt_yes_no(
     &mut self,
+    _state: &ClientState,
     _player: overseer_substrate::game::PlayerHandle,
+    _prompt: &str,
   ) -> InterfaceResult<YesNo> {
     self
       .yes_nos
       .get(self.yes_no_idx)
       .copied()
+      .ok_or(InterfaceError::Waiting)
+  }
+
+  fn prompt_target_select(
+    &mut self,
+    state: &ClientState,
+    objects: &ObjectPool,
+    player: overseer_substrate::game::PlayerHandle,
+    choices: &[Target],
+  ) -> InterfaceResult<Target> {
+    self
+      .target_selections
+      .get(self.target_selection_idx)
+      .cloned()
       .ok_or(InterfaceError::Waiting)
   }
 }
@@ -192,13 +372,16 @@ struct CliInterface;
 impl UserInterface for CliInterface {
   fn prompt_yes_no(
     &mut self,
-    player: overseer_substrate::game::PlayerHandle,
+    _state: &ClientState,
+    _player: PlayerHandle,
+    prompt: &str,
   ) -> InterfaceResult<YesNo> {
     const YES: &str = "Yes";
     const NO: &str = "No";
     const ITEMS: [&str; 2] = [YES, NO];
 
     let result = Select::with_theme(&ColorfulTheme::default())
+      .with_prompt(prompt)
       .items(&ITEMS)
       .interact()
       .unwrap();
@@ -208,5 +391,37 @@ impl UserInterface for CliInterface {
     } else {
       Ok(YesNo::No)
     }
+  }
+
+  fn prompt_target_select(
+    &mut self,
+    state: &ClientState,
+    objects: &ObjectPool,
+    _player: overseer_substrate::game::PlayerHandle,
+    targets: &[Target],
+  ) -> InterfaceResult<Target> {
+    let options: InterfaceResult<Vec<String>> = targets
+      .iter()
+      .map(|o| match o {
+        Target::Player(player_handle) => {
+          let player = state.get_player(*player_handle);
+          Ok(format!("{}", player.name))
+        }
+        Target::Object(object_handle) => {
+          let object = objects.get(object_handle);
+          match object {
+            Some(_) => todo!(),
+            None => Err(InterfaceError::Waiting),
+          }
+        }
+      })
+      .collect();
+    let options = options?;
+
+    let result = Select::with_theme(&ColorfulTheme::default())
+      .items(&options)
+      .interact()
+      .unwrap();
+    Ok(targets[result].clone())
   }
 }

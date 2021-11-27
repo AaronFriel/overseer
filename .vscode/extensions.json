@@ -1,7 +1,5 @@
 {
-	"recommendations": [
-		"matklad.rust-analyzer"
-	],
+	"recommendations": [],
 	"unwantedRecommendations": [
 		"rust-lang.rust"
 	]

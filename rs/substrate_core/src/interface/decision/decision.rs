@@ -7,10 +7,12 @@ use crate::game::PlayerHandle;
 #[derive(Serialize, Deserialize)]
 pub enum Decision {
   Public {
+    question: String,
     value: String,
     applied: bool,
   },
   Private {
+    question: String,
     server_value: String,
     player_values: Vec<String>,
     applied: bool,
@@ -18,7 +20,11 @@ pub enum Decision {
 }
 
 impl Decision {
-  pub fn new<'a, T>(server_value: &T, player_values: impl IntoIterator<Item = &'a T>) -> Self
+  pub fn new<'a, T>(
+    question: impl ToString,
+    server_value: &T,
+    player_values: impl IntoIterator<Item = &'a T>,
+  ) -> Self
   where
     T: 'a + Serialize + ?Sized,
   {
@@ -29,19 +35,21 @@ impl Decision {
       .collect();
 
     Self::Private {
+      question: question.to_string(),
       server_value,
       player_values,
       applied: false,
     }
   }
 
-  pub fn new_public<T>(value: &T) -> Self
+  pub fn new_public<T>(question: impl ToString, value: &T) -> Self
   where
     T: Serialize + ?Sized,
   {
     let value = serde_json::to_string(value).unwrap();
 
     Self::Public {
+      question: question.to_string(),
       value,
       applied: false,
     }

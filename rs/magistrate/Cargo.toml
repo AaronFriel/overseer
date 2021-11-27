@@ -19,25 +19,25 @@ vanguard = ["overseer_substrate/vanguard"]
 # logging them with `console.error`. This is great for development, but requires
 # all the `std::fmt` and `std::panicking` infrastructure, so isn't great for
 # code size when deploying.
-console_error_panic_hook = { version = "0.1.6", optional = true }
-dyn_partial_eq = "0.1.2"
+console_error_panic_hook = { version = "~0.1.6", optional = true }
+dyn_partial_eq = "~0.1.2"
 overseer_substrate = { path = "../substrate" }
 overseer_util = { path = "../util" }
-serde = "1.0.110"
-serde_derive = "1.0.110"
-serde_json = "1.0.53"
-wasm-bindgen = "0.2.69"
+serde = "^1.0.110"
+serde_derive = "^1.0.110"
+serde_json = "^1.0.53"
+wasm-bindgen = "~0.2.69"
 
 # `wee_alloc` is a tiny allocator for wasm that is only ~1K in code size
 # compared to the default allocator's ~10K. It is slower than the default
 # allocator, however.
 #
 # Unfortunately, `wee_alloc` requires nightly Rust when targeting wasm for now.
-wee_alloc = { version = "0.4.5", optional = true }
-smallvec = { version = "1.6.1", features = ["serde"] }
-rand = { version = "0.8.3", optional = true, features = ["getrandom"] }
-cfg-if = "1.0.0"
-replace_with = "0.1.7"
+wee_alloc = { version = "~0.4.5", optional = true }
+smallvec = { version = "^1.6.1", features = ["serde"] }
+rand = { version = "~0.8.3", optional = true, features = ["getrandom"] }
+cfg-if = "^1.0.0"
+replace_with = "~0.1.7"
 
 [dependencies.serde-diff]
 git = "https://github.com/AaronFriel/serde-diff"
@@ -50,7 +50,8 @@ features =["runtime"]
 default-features = false
 
 [dev-dependencies]
-wasm-bindgen-test = "0.3.20"
-insta = { version = "1.7.1", features = ["redactions"] }
-dialoguer = "0.8.0"
-rand = { version = "0.8.3", features = ["getrandom"] }
+wasm-bindgen-test = "~0.3.20"
+insta = { version = "^1.8.0", features = ["ron", "redactions"] }
+dialoguer = "~0.9.0"
+rand = { version = "~0.8.3", features = ["getrandom"] }
+serde_yaml = "~0.8.21"

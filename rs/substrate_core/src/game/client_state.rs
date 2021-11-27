@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, fmt::Display};
 
 use overseer_util::{make_handle, Handle};
 use serde::{Deserialize, Serialize};
@@ -6,7 +6,7 @@ use serde_diff::SerdeDiff;
 
 use crate::{
   action::{ChoicePrompt, SimpleAction},
-  game::{Battlefield, Card, Command, Exile, ObjectHandle, Player, Stack, Zone},
+  game::{Battlefield, Card, Command, Exile, ObjectHandle, ObjectPool, Player, Stack, Zone},
 };
 
 #[derive(Clone, Hash, Debug, PartialEq, SerdeDiff, Serialize, Deserialize)]
@@ -19,12 +19,14 @@ pub enum StateAction {
 
 #[derive(Clone, Hash, Debug)]
 #[derive(Serialize, Deserialize)]
-pub struct State {
+pub struct ClientState {
   pub cards: Vec<Card>,
   pub players: Vec<Player>,
   pub active_player: Option<PlayerHandle>,
 
   pub current_player: Option<PlayerHandle>,
+
+  pub objects: ObjectPool,
 
   pub battlefield: Zone<Battlefield>,
   pub stack: Zone<Stack>,
@@ -32,7 +34,7 @@ pub struct State {
   pub command: Zone<Command>,
 }
 
-impl State {
+impl ClientState {
   // TODO: Determine a better way to declare a game and set of valid cards?
   pub fn new(cards: Vec<Card>, players: Vec<Player>) -> Self {
     Self {
@@ -41,6 +43,8 @@ impl State {
       active_player: Some(PlayerHandle::from_index(0)),
 
       current_player: None,
+
+      objects: ObjectPool::new(),
 
       battlefield: Zone::new(),
       stack: Zone::new(),
@@ -134,6 +138,9 @@ impl State {
       active_player: self.active_player,
       current_player: Some(player),
 
+      // TOOD: Not accurate
+      objects: self.objects.clone(),
+
       battlefield,
       stack,
       exile,
@@ -162,3 +169,10 @@ pub enum Visibility {
 }
 
 make_handle!(PlayerHandle, u8);
+
+impl Display for PlayerHandle {
+  #[inline]
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    self.number().fmt(f)
+  }
+}
