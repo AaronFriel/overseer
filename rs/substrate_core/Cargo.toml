@@ -23,6 +23,7 @@ overseer_util = { path = "../util" }
 serde_json = "^1.0.64"
 cfg-if = "^1.0.0"
 tracing = "~0.1.26"
+smallvec = "1.7.0"
 
 [dependencies.serde-diff]
 git = "https://github.com/AaronFriel/serde-diff"

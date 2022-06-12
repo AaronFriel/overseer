@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use serde_diff::SerdeDiff;
 use smallvec::SmallVec;
 
-#[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 #[derive(DynPartialEq, Serialize, Deserialize)]
 
 pub struct Draw {
@@ -36,9 +36,11 @@ impl SimpleAction for Draw {
   }
 }
 
-impl ComplexAction<Vec<ObjectHandle>> for Draw {
-  fn apply(&mut self, game: &mut Game) -> ActionResult<Vec<ObjectHandle>> {
-    use ActionErr::*;
+impl ComplexAction for Draw {
+  type Result = SmallVec<[ObjectHandle; 7]>;
+
+  fn apply(&mut self, game: &mut Game) -> ActionResult<Self::Result> {
+    use ActionError::*;
     if let Some(mut draw) = self.draw_actions.pop() {
       match ComplexAction::apply(&mut draw, game) {
         Ok(Some(handle)) => {
@@ -52,12 +54,12 @@ impl ComplexAction<Vec<ObjectHandle>> for Draw {
         }
       }
     } else {
-      Ok(self.drawn_cards.clone())
+      Ok(self.drawn_cards.iter().cloned().collect())
     }
   }
 }
 
-#[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 #[derive(DynPartialEq, Serialize, Deserialize, SerdeDiff)]
 pub struct DrawOne {
   pub player: PlayerHandle,
@@ -73,9 +75,12 @@ impl DrawOne {
   }
 }
 
-impl ComplexAction<Option<ObjectHandle>> for DrawOne {
-  fn apply(&mut self, game: &mut Game) -> ActionResult<Option<ObjectHandle>> {
-    use ActionErr::*;
+impl ComplexAction for DrawOne {
+  type Result = Option<ObjectHandle>;
+
+  #[tracing::instrument(skip(game))]
+  fn apply(&mut self, game: &mut Game) -> ActionResult<Self::Result> {
+    use ActionError::*;
 
     if let Ok(result) = game.wrap_decision_public(
       self.decision,
@@ -83,12 +88,15 @@ impl ComplexAction<Option<ObjectHandle>> for DrawOne {
         "Player {} draws?",
         game.state().get_player(self.player).name,
       ),
-      |state, server| server_side_draw(state, &mut server.objects, self.player),
-      |state, result| {
+      |client, server| server_side_draw(client, &mut server.objects, self.player),
+      |client, result| {
         if let Some((card_to_remove, hand)) = result.cloned() {
-          let player = state.get_player_mut(self.player);
+          let player = client.get_player_mut(self.player);
 
-          player.library.remove(&card_to_remove);
+          dbg!(&player.hand);
+          dbg!(&card_to_remove);
+          tracing::debug!(cards_in_library = ?player.library.count(), cards_in_hand = ?player.hand.count());
+          // player.library.remove(&card_to_remove);
           player.hand = hand;
         } else {
           todo!()
@@ -108,7 +116,7 @@ impl ComplexAction<Option<ObjectHandle>> for DrawOne {
 
 #[cfg(feature = "server")]
 fn server_side_draw(
-  game: &ClientState,
+  client: &ClientState,
   objects: &mut ObjectPool,
   player: PlayerHandle,
 ) -> Option<(ObjectHandle, Zone<Hand>)> {
@@ -116,14 +124,14 @@ fn server_side_draw(
 
   use rand::{prelude::SliceRandom, rngs::OsRng};
 
-  let player = game.get_player(player);
+  let player = client.get_player(player);
 
-  if let Some(card) = player.library.get_top(0).map(ObjectHandle::weak_clone) {
+  if let Some(card) = player.library.get_top(0).cloned() {
     let mut hand: Vec<_> = player
       .hand
       .iter()
-      .map(ObjectHandle::weak_clone)
-      .chain(once(card.weak_clone()))
+      .cloned()
+      .chain(once(card.clone()))
       .collect();
     hand.shuffle(&mut OsRng);
     let hand = hand

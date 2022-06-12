@@ -2,7 +2,10 @@
 
 use std::{fmt::Debug, hash::Hash};
 
-use overseer_substrate::{action::ComplexAction, game::Game};
+use overseer_substrate::{
+  action::{ActionResult, ComplexAction},
+  game::Game,
+};
 use serde::{Deserialize, Serialize};
 use serde_diff::SerdeDiff;
 
@@ -16,11 +19,13 @@ where
   items: Vec<T>,
 }
 
-impl<T> ComplexAction<T> for Shuffle<T>
+impl<T> ComplexAction for Shuffle<T>
 where
   for<'a> T: Clone + Debug + SerdeDiff + Serialize + Deserialize<'a>,
 {
-  fn apply(&mut self, game: &mut Game) -> overseer_substrate::action::ActionResult<T> {
+  type Result = Vec<T>;
+
+  fn apply(&mut self, game: &mut Game) -> ActionResult<Self::Result> {
     todo!()
   }
 }

@@ -8,17 +8,25 @@ use serde_diff::SerdeDiff;
 
 use crate::{
   game::{Game, PlayerHandle, Visibility},
-  interface::Target,
+  interface::{InterfaceError, Target},
 };
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 #[derive(Serialize, Deserialize)]
-pub enum ActionErr {
+pub enum ActionError {
   Step,
   Waiting,
 }
 
-pub type ActionResult<T> = Result<T, ActionErr>;
+impl From<InterfaceError> for ActionError {
+  fn from(err: InterfaceError) -> Self {
+    match err {
+      InterfaceError::Waiting => ActionError::Waiting,
+    }
+  }
+}
+
+pub type ActionResult<T> = Result<T, ActionError>;
 
 pub trait ActionResultLike {
   fn as_simple(self) -> ActionResult<()>;
@@ -32,26 +40,43 @@ impl<T> ActionResultLike for ActionResult<T> {
 
 #[derive(Copy, Clone, PartialOrd, Ord, PartialEq, Eq, Hash, Debug)]
 #[derive(Serialize, Deserialize)]
-pub enum ActionThunk<T, A> {
-  Resolved(T),
+pub enum ActionThunk<A>
+where
+  A: ComplexAction,
+{
+  Resolved(A::Result),
   Action(A),
 }
 
-impl<T, A> From<A> for ActionThunk<T, A>
+impl<A> From<A> for ActionThunk<A>
 where
-  A: ComplexAction<T>,
+  A: ComplexAction,
 {
   fn from(action: A) -> Self {
     ActionThunk::Action(action)
   }
 }
 
-impl<T, A> ComplexAction<T> for ActionThunk<T, A>
+impl<A> ComplexAction for ActionThunk<A>
 where
-  T: Debug + Clone + Copy,
-  A: ComplexAction<T>,
+  A: ComplexAction,
+  A::Result: Clone,
 {
-  fn apply(&mut self, game: &mut Game) -> ActionResult<T> {
+  type Result = A::Result;
+
+  fn apply(&mut self, game: &mut Game) -> ActionResult<Self::Result> {
+    self.apply_cloned(game)
+  }
+}
+
+impl<A> ActionThunk<A>
+where
+  A: ComplexAction,
+{
+  pub fn apply_copied(&mut self, game: &mut Game) -> ActionResult<<A as ComplexAction>::Result>
+  where
+    <A as ComplexAction>::Result: Copy,
+  {
     match self {
       ActionThunk::Resolved(value) => Ok(*value),
       ActionThunk::Action(action) => {
@@ -60,6 +85,38 @@ where
         *self = ActionThunk::Resolved(value);
 
         Ok(value)
+      }
+    }
+  }
+
+  pub fn apply_cloned(&mut self, game: &mut Game) -> ActionResult<<A as ComplexAction>::Result>
+  where
+    <A as ComplexAction>::Result: Clone,
+  {
+    match self {
+      ActionThunk::Resolved(value) => Ok(value.clone()),
+      ActionThunk::Action(action) => {
+        let value = action.apply(game)?;
+
+        *self = ActionThunk::Resolved(value.clone());
+
+        Ok(value)
+      }
+    }
+  }
+
+  pub fn apply_borrowed(&mut self, game: &mut Game) -> ActionResult<&<A as ComplexAction>::Result> {
+    match self {
+      ActionThunk::Resolved(value) => Ok(value),
+      ActionThunk::Action(action) => {
+        let value = action.apply(game)?;
+
+        *self = ActionThunk::Resolved(value);
+
+        match self {
+          ActionThunk::Resolved(value) => Ok(value),
+          ActionThunk::Action(_) => unreachable!(),
+        }
       }
     }
   }
@@ -106,12 +163,14 @@ pub trait SimpleAction: Debug + ActionHash + Clone {
   fn perform(&mut self, game: &mut Game) -> ActionResult<()>;
 }
 
-pub trait ComplexAction<T>: Debug + Clone {
+pub trait ComplexAction {
+  type Result;
+
   fn perform(&mut self, game: &mut Game) -> ActionResult<()> {
     self.apply(game).as_simple()
   }
 
-  fn apply(&mut self, game: &mut Game) -> ActionResult<T>;
+  fn apply(&mut self, game: &mut Game) -> ActionResult<Self::Result>;
 }
 
 pub type ActionList = Vec<Box<dyn SimpleAction>>;

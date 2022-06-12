@@ -12,6 +12,7 @@ macro_rules! make_refcounted_pool {
     $crate::deps::paste::paste! {
       mod [<$struct_name:snake _impl>] {
         use std::rc::Weak;
+        use std::cell::UnsafeCell;
         use std::num::NonZeroU128;
 
         use $crate::deps::serde::{Deserialize, Serialize};
@@ -126,7 +127,7 @@ macro_rules! make_refcounted_pool {
               .pool
               .map
               .get_mut(&original_handle.get_index())
-              .filter(|entry| Weak::as_ptr(entry.get_rc()) == original_handle.as_ptr())
+              // .filter(|entry| Weak::as_ptr(entry.get_rc()) == original_handle.as_ptr())
             {
               let (value, real_index) = current_entry.share(original_index);
               let inserted = $crate::pool::Item::Virtual {
@@ -148,14 +149,14 @@ macro_rules! make_refcounted_pool {
           pub fn get(&self, $struct_name(handle): &$struct_name) -> Option<&Obj> {
             self.pool.map
               .get(&handle.get_index())
-              .filter(|entry| Weak::as_ptr(entry.get_rc()) == handle.as_ptr())
+              // .filter(|entry| Weak::as_ptr(entry.get_rc()) == handle.as_ptr())
               .map(|entry| entry.get())
           }
 
           pub fn get_mut(&mut self, $struct_name(handle): &$struct_name) -> Option<&mut Obj> {
             self.pool.map
               .get_mut(&handle.get_index())
-              .filter(|entry| Weak::as_ptr(entry.get_rc()) == handle.as_ptr())
+              // .filter(|entry| Weak::as_ptr(entry.get_rc()) == handle.as_ptr())
               .map(|entry| {
                 entry.promote();
                 entry.get_mut()
@@ -181,7 +182,7 @@ macro_rules! make_refcounted_pool {
                 // index: NonZeroUuid(unsafe { NonZeroU128::new_unchecked(k) }),
                 // Goal: NonZeroUuid, have: Uuid
                 index: $crate::pool::NonZeroUuid(unsafe { NonZeroU128::new_unchecked(k.as_u128()) }),
-                rc: None,
+                rc: UnsafeCell::new(None),
               }), v.get())
             })
           }
@@ -196,7 +197,7 @@ macro_rules! make_refcounted_pool {
             self.pool.len()
           }
 
-          pub fn reassociate<'a>(&mut self, handles: impl IntoIterator<Item = &'a mut $struct_name>) {
+          pub fn reassociate<'a>(&mut self, handles: impl IntoIterator<Item = &'a $struct_name>) {
             let pool = self.pool.clone();
             let pool = pool.to_disassociated_pool();
             let pool = pool.reassociate(handles.into_iter().map(|$struct_name(handle)| handle));
@@ -205,7 +206,7 @@ macro_rules! make_refcounted_pool {
         }
 
         impl [<Disassociated $pool_name:camel>] {
-          pub fn reassociate<'a>(self, handles: impl IntoIterator<Item = &'a mut $struct_name>) -> $pool_name {
+          pub fn reassociate<'a>(self, handles: impl IntoIterator<Item = &'a $struct_name>) -> $pool_name {
             let pool = self.pool.reassociate(handles.into_iter().map(|$struct_name(handle)| handle));
 
             $pool_name { pool }
@@ -552,7 +553,7 @@ mod tests {
       name: Cow::Borrowed(s),
     };
     let mut pool = FooPool::new();
-    let mut handle_one = pool.insert_monotonic(make_obj("one"));
+    let handle_one = pool.insert_monotonic(make_obj("one"));
 
     assert_yaml_snapshot!(pool, @r###"
     ---
@@ -568,7 +569,7 @@ mod tests {
     {}
     "###);
 
-    let pool_clone = serde_clone(&pool).reassociate([&mut handle_one]);
+    let pool_clone = serde_clone(&pool).reassociate([&handle_one]);
 
     // After re
     assert_yaml_snapshot!(pool_clone, @r###"
@@ -586,10 +587,10 @@ mod tests {
       name: Cow::Borrowed(s),
     };
     let mut pool = FooPool::new();
-    let mut handle_one = pool.insert_monotonic(make_obj("one"));
-    let mut handle_two = pool.reinsert_monotonic(&handle_one).unwrap();
+    let handle_one = pool.insert_monotonic(make_obj("one"));
+    let handle_two = pool.reinsert_monotonic(&handle_one).unwrap();
 
-    let pool_clone = serde_clone(&pool).reassociate([&mut handle_one]);
+    let pool_clone = serde_clone(&pool).reassociate([&handle_one]);
     // Only the second handle was reassociated, and it became shared
     assert_yaml_snapshot!(pool_clone, @r###"
     ---
@@ -599,7 +600,7 @@ mod tests {
         name: one
     "###);
 
-    let pool_clone = serde_clone(&pool).reassociate([&mut handle_two]);
+    let pool_clone = serde_clone(&pool).reassociate([&handle_two]);
     // Only the second handle was reassociated, and it became shared
     assert_yaml_snapshot!(pool_clone, @r###"
     ---
@@ -819,7 +820,7 @@ mod tests {
     };
     let mut pool = FooPool::new();
     let handle_one = pool.insert_monotonic(make_obj("one"));
-    let mut handle_one_weak = handle_one.weak_clone();
+    let handle_one_weak = handle_one.weak_clone();
 
     std::mem::drop(handle_one); // Entry is now disassociated, but we can recover
 
@@ -834,7 +835,7 @@ mod tests {
     }
 
     assert_eq!(handle_one_weak.is_weak(), true);
-    pool.reassociate([&mut handle_one_weak]);
+    pool.reassociate([&handle_one_weak]);
     assert_eq!(handle_one_weak.is_weak(), false);
 
     // Proof of reassociation, same operation but the weak handle is now strong:

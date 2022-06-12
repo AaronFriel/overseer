@@ -6,9 +6,8 @@ members = [
   "rs/substrate_core",
   "rs/util",
   "rs/substrate",
-  # "rs/cli",
-  # "rs/sandbox",
 ]
+#  "rs/cli",  # "rs/sandbox",
 
 [profile.release]
 # Tell `rustc` to optimize for small code size.

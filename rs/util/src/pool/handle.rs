@@ -1,4 +1,5 @@
 use std::{
+  cell::UnsafeCell,
   fmt::Debug,
   hash::Hash,
   num::NonZeroU128,
@@ -10,24 +11,53 @@ use uuid::Uuid;
 
 use super::NonZeroUuid;
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct Handle {
   pub index: NonZeroUuid,
   #[serde(skip)]
-  pub rc: Option<Rc<()>>,
+  pub rc: UnsafeCell<Option<Rc<()>>>,
+}
+
+impl Ord for Handle {
+  fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+    self.index.cmp(&other.index)
+  }
+}
+
+impl Eq for Handle {}
+
+impl PartialOrd for Handle {
+  fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+    self.index.partial_cmp(&other.index)
+  }
+}
+
+impl PartialEq for Handle {
+  fn eq(&self, other: &Self) -> bool {
+    self.index == other.index
+  }
+}
+
+impl Clone for Handle {
+  fn clone(&self) -> Self {
+    Self {
+      index: self.index.clone(),
+      rc: UnsafeCell::new(unsafe { &*self.rc.get() }.clone()),
+    }
+  }
 }
 
 impl Handle {
   pub fn new(index: NonZeroU128) -> Self {
     Self {
       index: NonZeroUuid(index),
-      rc: Some(Rc::default()),
+      rc: UnsafeCell::new(Some(Rc::default())),
     }
   }
 
   pub fn is_weak(&self) -> bool {
-    self.rc.is_none()
+    unsafe { &*self.rc.get() }.is_none()
   }
 
   pub fn get_index(&self) -> Uuid {
@@ -40,7 +70,7 @@ impl Handle {
     (
       Self {
         index: NonZeroUuid(index),
-        rc: Some(rc),
+        rc: UnsafeCell::new(Some(rc)),
       },
       weak,
     )
@@ -49,12 +79,12 @@ impl Handle {
   pub fn weak_clone(&self) -> Self {
     Self {
       index: self.index,
-      rc: None,
+      rc: UnsafeCell::new(None),
     }
   }
 
   pub fn as_ptr(&self) -> *const () {
-    match self.rc {
+    match unsafe { &*self.rc.get() } {
       Some(ref rc) => Rc::as_ptr(rc),
       None => std::ptr::null(),
     }

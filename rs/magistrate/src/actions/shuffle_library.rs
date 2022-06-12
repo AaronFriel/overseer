@@ -7,7 +7,7 @@ use overseer_substrate::{
 use serde::{Deserialize, Serialize};
 use serde_diff::SerdeDiff;
 
-#[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 #[derive(DynPartialEq, Serialize, Deserialize, SerdeDiff)]
 pub struct ShuffleLibrary {
   player: PlayerHandle,
@@ -26,7 +26,7 @@ impl ShuffleLibrary {
 #[typetag::serde]
 impl SimpleAction for ShuffleLibrary {
   fn perform(&mut self, game: &mut Game) -> ActionResult<()> {
-    use ActionErr::*;
+    use ActionError::*;
 
     if let Ok(_) = game.wrap_decision_public(
       self.decision,

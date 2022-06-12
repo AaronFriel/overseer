@@ -139,12 +139,16 @@ impl<T> DisassociatedPool<T>
 where
   T: Clone,
 {
-  pub fn reassociate<'a>(self, handles: impl Iterator<Item = &'a mut Handle>) -> Pool<T> {
+  pub fn reassociate<'a>(self, handles: impl Iterator<Item = &'a Handle>) -> Pool<T> {
     for h in handles {
       let index = h.get_index();
 
-      if let Some(other) = self.handles.get(&index) {
-        h.rc = other.rc.clone();
+      if let Some(existing) = self.handles.get(&index) {
+        unsafe {
+          // No other mutation to the rc occurs, we have exclusive access to self.
+          let h_rc = &mut *h.rc.get();
+          *h_rc = (&*existing.rc.get()).clone();
+        }
       } else {
         // TODO: this should be an error
       }

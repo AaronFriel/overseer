@@ -7,7 +7,7 @@ use overseer_substrate::{
 use serde::{Deserialize, Serialize};
 use serde_diff::SerdeDiff;
 
-#[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
+#[derive(Clone, Eq, PartialEq, PartialOrd, Ord, Hash, Debug)]
 #[derive(DynPartialEq, Serialize, Deserialize, SerdeDiff)]
 pub struct SetupLibrary {
   player: PlayerHandle,
@@ -26,7 +26,15 @@ impl SetupLibrary {
 #[typetag::serde]
 impl SimpleAction for SetupLibrary {
   fn perform(&mut self, game: &mut Game) -> ActionResult<()> {
-    use ActionErr::*;
+    ComplexAction::apply(self, game)
+  }
+}
+
+impl ComplexAction for SetupLibrary {
+  type Result = ();
+
+  fn apply(&mut self, game: &mut Game) -> ActionResult<Self::Result> {
+    use ActionError::*;
 
     if let Ok(_) = game.wrap_decision_public(
       self.decision,
@@ -37,6 +45,8 @@ impl SimpleAction for SetupLibrary {
         player.library = library.take();
       },
     ) {
+      // let player = game.client.get_player(self.player);
+      // game.server.objects.reassociate(player.library.iter());
       Ok(())
     } else {
       Err(Waiting)

@@ -4,10 +4,12 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
   game::{ClientState, PlayerHandle, ServerState},
-  interface::{Decision, DecisionHandle, DecisionList, InterfaceResult, UserInterface, YesNo},
+  interface::{
+    Decision, DecisionHandle, DecisionList, InterfaceError, InterfaceResult, UserInterface, YesNo,
+  },
 };
 
-#[derive(Copy, Clone, Serialize, Deserialize)]
+#[derive(Copy, Clone, Serialize, Deserialize, Debug)]
 pub enum Mode {
   Server,
   Client(PlayerHandle),
@@ -19,6 +21,16 @@ pub struct Game {
   pub server: ServerState,
   pub mode: Mode,
   pub interface: Box<dyn UserInterface>,
+}
+
+impl std::fmt::Debug for Game {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    f.debug_struct("Game")
+      .field("client", &self.client)
+      .field("server", &self.server)
+      .field("mode", &self.mode)
+      .finish()
+  }
 }
 
 pub enum ServerResult<T> {
@@ -174,6 +186,7 @@ impl Game {
     T: Serialize,
     for<'de> T: Deserialize<'de>,
   {
+    // dbg!("decisions: {}", &self.server.decisions);
     if self.server.decisions.contains(decision_handle) {
       if let Some(decision) = self.server.decisions.get_mut(decision_handle) {
         let value = decision.get_server_decision().unwrap();
@@ -184,6 +197,7 @@ impl Game {
         }
         Ok(decision_entry)
       } else {
+        dbg!("decision_handle: {}", &decision_handle);
         unreachable!()
       }
     } else {
@@ -241,11 +255,49 @@ impl Game {
     }
   }
 
+  pub fn wrap_prompt<T>(
+    &mut self,
+    decision: DecisionHandle,
+    question: impl ToString,
+    player: PlayerHandle,
+    prompt: impl Fn(&ClientState, &ServerState, &mut dyn UserInterface) -> InterfaceResult<(T, Vec<T>)>,
+  ) -> InterfaceResult<DecisionEntry<T>>
+  where
+    T: Serialize,
+    for<'de> T: Deserialize<'de>,
+  {
+    if self.server.decisions.contains(decision) {
+      if let Some(decision) = self.server.decisions.get_mut(decision) {
+        let value = get_decision_value(decision, self.mode);
+        Ok(DecisionEntry::new(decision, self.mode, value))
+      } else {
+        unreachable!()
+      }
+    } else {
+      if !self.is_player(player) {
+        return Err(InterfaceError::Waiting);
+      }
+
+      match prompt(&mut self.client, &self.server, &mut *self.interface) {
+        Ok((server_value, player_values)) => {
+          let decision =
+            self
+              .server
+              .decisions
+              .set_decision(decision, question, &server_value, &player_values);
+          let value = get_decision_value(decision, self.mode);
+          Ok(DecisionEntry::new(decision, self.mode, value))
+        }
+        Err(e) => Err(e),
+      }
+    }
+  }
+
   pub fn wrap_prompt_public<T>(
     &mut self,
     decision_handle: DecisionHandle,
     question: impl ToString,
-    prepare: impl Fn(&ClientState, &mut dyn UserInterface) -> InterfaceResult<T>,
+    prepare: impl Fn(&ClientState, &ServerState, &mut dyn UserInterface) -> InterfaceResult<T>,
     apply: impl Fn(&mut ClientState, &mut DecisionEntry<T>),
   ) -> InterfaceResult<DecisionEntry<T>>
   where
@@ -265,7 +317,7 @@ impl Game {
         unreachable!()
       }
     } else {
-      match prepare(&mut self.client, &mut *self.interface) {
+      match prepare(&mut self.client, &self.server, &mut *self.interface) {
         Ok(value) => {
           let decision =
             self
@@ -351,24 +403,30 @@ where
   }
 
   pub fn apply_borrowed(&mut self, f: impl Fn(Ref<T>) -> ()) {
-    f(self.borrow());
-    self.set_applied()
+    if !self.applied() {
+      f(self.borrow());
+      self.set_applied();
+    }
   }
 
   pub fn apply_copy(&mut self, f: impl Fn(T) -> ())
   where
     T: Copy,
   {
-    f(*self.borrow());
-    self.set_applied()
+    if !self.applied() {
+      f(*self.borrow());
+      self.set_applied();
+    }
   }
 
   pub fn apply_cloned(&mut self, f: impl Fn(T) -> ())
   where
     T: Clone,
   {
-    f(self.cloned());
-    self.set_applied()
+    if !self.applied() {
+      f(self.cloned());
+      self.set_applied();
+    }
   }
 
   pub fn copied(&self) -> T

@@ -6,6 +6,10 @@ use crate::game::PlayerHandle;
 #[derive(Clone, Hash, Debug)]
 #[derive(Serialize, Deserialize)]
 pub enum Decision {
+  Reserved {
+    question: String,
+    player: Option<PlayerHandle>,
+  },
   Public {
     question: String,
     value: String,
@@ -59,6 +63,7 @@ impl Decision {
     match *self {
       Decision::Public { applied, .. } => applied,
       Decision::Private { applied, .. } => applied,
+      Decision::Reserved => false,
     }
   }
 

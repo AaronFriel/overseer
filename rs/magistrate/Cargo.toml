@@ -34,10 +34,11 @@ wasm-bindgen = "~0.2.69"
 #
 # Unfortunately, `wee_alloc` requires nightly Rust when targeting wasm for now.
 wee_alloc = { version = "~0.4.5", optional = true }
-smallvec = { version = "^1.6.1", features = ["serde"] }
+smallvec = { version = "^1.7.0", features = ["serde"] }
 rand = { version = "~0.8.3", optional = true, features = ["getrandom"] }
 cfg-if = "^1.0.0"
 replace_with = "~0.1.7"
+tracing = "0.1.29"
 
 [dependencies.serde-diff]
 git = "https://github.com/AaronFriel/serde-diff"
@@ -52,6 +53,9 @@ default-features = false
 [dev-dependencies]
 wasm-bindgen-test = "~0.3.20"
 insta = { version = "^1.8.0", features = ["ron", "redactions"] }
-dialoguer = "~0.9.0"
+dialoguer = { version = "~0.9.0", features = ["fuzzy-select"] }
 rand = { version = "~0.8.3", features = ["getrandom"] }
 serde_yaml = "~0.8.21"
+env_logger = "0.9.0"
+tracing-subscriber = { version = "0.3.0", features = ["env-filter", "fmt", "json", "std"] }
+test-log = { version = "0.2.8", default-features = false, features = ["trace"] }

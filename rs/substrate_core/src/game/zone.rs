@@ -42,7 +42,7 @@ where
   K: ZoneKinded,
 {
   objects: K::Collection,
-  count: u32,
+  count: usize,
   #[serde(skip)]
   kind: PhantomData<K>,
 }
@@ -154,7 +154,7 @@ where
   }
 
   /// Get the zone's object count.
-  pub fn count(&self) -> u32 {
+  pub fn count(&self) -> usize {
     self.count
   }
 }
@@ -180,7 +180,7 @@ pub trait ObjectCollection:
 {
   fn iter(&self) -> Box<dyn Iterator<Item = &ObjectHandle> + '_>;
 
-  fn count(&self) -> u32;
+  fn count(&self) -> usize;
 
   fn insert(&mut self, object: ObjectHandle) -> bool;
 
@@ -206,8 +206,8 @@ impl ObjectCollection for HashSet<ObjectHandle> {
     Box::new(self.iter())
   }
 
-  fn count(&self) -> u32 {
-    self.len() as u32
+  fn count(&self) -> usize {
+    self.len() as usize
   }
 
   fn insert(&mut self, object: ObjectHandle) -> bool {
@@ -228,8 +228,8 @@ impl ObjectCollection for VecDeque<Option<ObjectHandle>> {
     Box::new(self.iter().filter_map(|x| x.as_ref()))
   }
 
-  fn count(&self) -> u32 {
-    self.len() as u32
+  fn count(&self) -> usize {
+    self.len() as usize
   }
 
   fn insert(&mut self, object: ObjectHandle) -> bool {
@@ -262,7 +262,7 @@ where
     self.objects.iter()
   }
 
-  fn count(&self) -> u32 {
+  fn count(&self) -> usize {
     self.count
   }
 

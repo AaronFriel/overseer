@@ -1,13 +1,13 @@
 use std::{cell::RefCell, iter, rc::Rc};
 
-use dialoguer::{theme::ColorfulTheme, Select};
+use dialoguer::{theme::ColorfulTheme, MultiSelect, Select};
 use insta::{assert_ron_snapshot, assert_yaml_snapshot};
 use overseer_magistrate::{
   actions::StartGame,
   cards::{METALLIC_SLIVER, WASTES},
 };
 use overseer_substrate::{
-  action::{ActionErr, SimpleAction},
+  action::{ActionError, SimpleAction},
   game::{ClientState, Game, Mode, ObjectPool, Player, PlayerHandle, RegisteredCard, ServerState},
   interface::{DecisionList, InterfaceError, InterfaceResult, Target, UserInterface, YesNo},
 };
@@ -23,12 +23,9 @@ fn serde_clone<T: Serialize + DeserializeOwned>(value: &T) -> T {
 }
 */
 
-#[test]
+#[test_log::test]
 fn foo() {
-  let deck: Vec<RegisteredCard> = iter::repeat(RegisteredCard::from(WASTES))
-    .take(17)
-    .chain(iter::repeat(RegisteredCard::from(METALLIC_SLIVER)).take(23))
-    .collect();
+  let deck: Vec<RegisteredCard> = simple_deck();
 
   let players = vec![
     Player::new("Friel", deck.clone(), vec![]),
@@ -39,29 +36,21 @@ fn foo() {
 
   let client_state = ClientState::new(vec![WASTES.clone(), METALLIC_SLIVER.clone()], players);
 
-  let decisions: DecisionList = serde_yaml::from_str(
-    r###"
-entries:
-- Public:
-    question: Who wins the die roll?
-    value: "4"
-    applied: false
-- Public:
-    question: "Player 4, Karl, you've won the die roll, do you want to go first?"
-    value: "\"No\""
-    applied: false
-- Public:
-    question: "Player 1, Friel, you've won the die roll, do you want to go first?"
-    value: "\"No\""
-    applied: false
-- Public:
-    question: "Player 2, Kyle, you've won the die roll, do you want to go first?"
-    value: "\"Yes\""
-    applied: false
-reserved: 0
-  "###,
-  )
-  .unwrap();
+  let decisions = DecisionList::new();
+  //   let decisions: DecisionList = serde_yaml::from_str(
+  //     r###"
+  // entries:
+  // - Public: question: Who wins the die roll? value: "4" applied: false
+  // - Public: question: "Player 4, Karl, you've won the die roll, do you want to
+  //   go first?" value: "\"No\"" applied: false
+  // - Public: question: "Player 1, Friel, you've won the die roll, do you want to
+  //   go first?" value: "\"No\"" applied: false
+  // - Public: question: "Player 2, Kyle, you've won the die roll, do you want to
+  //   go first?" value: "\"Yes\"" applied: false
+  // reserved: 0
+  //   "###,
+  //   )
+  //   .unwrap();
 
   let server_state = ServerState::new(ObjectPool::new(), decisions, Vec::new());
 
@@ -106,7 +95,7 @@ reserved: 0
         question: "Player 2, Kyle, you've won the die roll, do you want to go first?"
         value: "\"Yes\""
         applied: true
-  reserved: 4
+  reserved: 8
   "###);
 
   assert_ron_snapshot!(game.state(), {
@@ -234,9 +223,16 @@ reserved: 0
   "###);
 }
 
+fn simple_deck() -> Vec<RegisteredCard> {
+  iter::repeat(RegisteredCard::from(WASTES))
+    .take(17)
+    .chain(iter::repeat(RegisteredCard::from(METALLIC_SLIVER)).take(23))
+    .collect()
+}
+
 fn step(mut action: Box<dyn SimpleAction>, mut game: &mut Game) {
   println!("Stepping {:?}", action);
-  use ActionErr::*;
+  use ActionError::*;
   match action.perform(&mut game) {
     Ok(()) => {}
     Err(Step) => {
@@ -281,20 +277,43 @@ impl UserInterface for RecordingInterface {
 
   fn prompt_target_select(
     &mut self,
-    state: &ClientState,
+    client: &ClientState,
     objects: &ObjectPool,
     player: overseer_substrate::game::PlayerHandle,
     targets: &[Target],
+    prompt: &str,
   ) -> InterfaceResult<Target> {
     let mut test_interface = self.test_interface.borrow_mut();
-    match test_interface.prompt_target_select(state, objects, player, targets) {
+    match test_interface.prompt_target_select(client, objects, player, targets, prompt) {
       Ok(value) => Ok(value),
       Err(_) => {
         let value = self
           .cli_interface
-          .prompt_target_select(state, objects, player, targets)
+          .prompt_target_select(client, objects, player, targets, prompt)
           .unwrap();
         test_interface.push_target_selection(value.clone());
+        Ok(value)
+      }
+    }
+  }
+
+  fn prompt_target_multi_select(
+    &mut self,
+    client: &ClientState,
+    objects: &ObjectPool,
+    player: overseer_substrate::game::PlayerHandle,
+    targets: &[Target],
+    prompt: &str,
+  ) -> InterfaceResult<Vec<Target>> {
+    let mut test_interface = self.test_interface.borrow_mut();
+    match test_interface.prompt_target_multi_select(client, objects, player, targets, prompt) {
+      Ok(value) => Ok(value),
+      Err(_) => {
+        let value = self
+          .cli_interface
+          .prompt_target_multi_select(client, objects, player, targets, prompt)
+          .unwrap();
+        test_interface.push_target_multi_selection(value.clone());
         Ok(value)
       }
     }
@@ -307,6 +326,8 @@ struct TestInterface {
   yes_nos: Vec<YesNo>,
   target_selection_idx: usize,
   target_selections: Vec<Target>,
+  target_multi_selection_idx: usize,
+  target_multi_selections: Vec<Vec<Target>>,
 }
 
 impl TestInterface {
@@ -316,11 +337,9 @@ impl TestInterface {
       yes_nos: Vec::new(),
       target_selection_idx: 0,
       target_selections: Vec::new(),
+      target_multi_selection_idx: 0,
+      target_multi_selections: Vec::new(),
     }
-  }
-
-  pub fn get_yes_no(&self) -> &YesNo {
-    &self.yes_nos[self.yes_no_idx]
   }
 
   pub fn push_yes_no(&mut self, value: YesNo) {
@@ -328,13 +347,14 @@ impl TestInterface {
     self.yes_no_idx = self.yes_no_idx + 1;
   }
 
-  pub fn get_target_selection(&self) -> &Target {
-    &self.target_selections[self.target_selection_idx]
-  }
-
   pub fn push_target_selection(&mut self, value: Target) {
     self.target_selections.push(value);
     self.target_selection_idx = self.target_selection_idx + 1;
+  }
+
+  pub fn push_target_multi_selection(&mut self, value: Vec<Target>) {
+    self.target_multi_selections.push(value);
+    self.target_multi_selection_idx = self.target_selection_idx + 1;
   }
 }
 
@@ -358,10 +378,26 @@ impl UserInterface for TestInterface {
     _objects: &ObjectPool,
     _player: overseer_substrate::game::PlayerHandle,
     _choices: &[Target],
+    _prompt: &str,
   ) -> InterfaceResult<Target> {
     self
       .target_selections
       .get(self.target_selection_idx)
+      .cloned()
+      .ok_or(InterfaceError::Waiting)
+  }
+
+  fn prompt_target_multi_select(
+    &mut self,
+    _client: &ClientState,
+    _objects: &ObjectPool,
+    _player: PlayerHandle,
+    _targets: &[Target],
+    _prompt: &str,
+  ) -> InterfaceResult<Vec<Target>> {
+    self
+      .target_multi_selections
+      .get(self.target_multi_selection_idx)
       .cloned()
       .ok_or(InterfaceError::Waiting)
   }
@@ -372,16 +408,21 @@ struct CliInterface;
 impl UserInterface for CliInterface {
   fn prompt_yes_no(
     &mut self,
-    _state: &ClientState,
-    _player: PlayerHandle,
+    client: &ClientState,
+    player: PlayerHandle,
     prompt: &str,
   ) -> InterfaceResult<YesNo> {
     const YES: &str = "Yes";
     const NO: &str = "No";
     const ITEMS: [&str; 2] = [YES, NO];
 
-    let result = Select::with_theme(&ColorfulTheme::default())
-      .with_prompt(prompt)
+    let result = dialoguer::Select::with_theme(&ColorfulTheme::default())
+      .with_prompt(format!(
+        "Player {}, {}: {}",
+        player,
+        client.get_player(player).name,
+        prompt,
+      ))
       .items(&ITEMS)
       .interact()
       .unwrap();
@@ -395,16 +436,17 @@ impl UserInterface for CliInterface {
 
   fn prompt_target_select(
     &mut self,
-    state: &ClientState,
+    client: &ClientState,
     objects: &ObjectPool,
-    _player: overseer_substrate::game::PlayerHandle,
+    player: overseer_substrate::game::PlayerHandle,
     targets: &[Target],
+    prompt: &str,
   ) -> InterfaceResult<Target> {
     let options: InterfaceResult<Vec<String>> = targets
       .iter()
       .map(|o| match o {
         Target::Player(player_handle) => {
-          let player = state.get_player(*player_handle);
+          let player = client.get_player(*player_handle);
           Ok(format!("{}", player.name))
         }
         Target::Object(object_handle) => {
@@ -419,9 +461,54 @@ impl UserInterface for CliInterface {
     let options = options?;
 
     let result = Select::with_theme(&ColorfulTheme::default())
+      .with_prompt(format!(
+        "Player {}, {}: {}",
+        player,
+        client.get_player(player).name,
+        prompt,
+      ))
       .items(&options)
       .interact()
       .unwrap();
     Ok(targets[result].clone())
+  }
+
+  fn prompt_target_multi_select(
+    &mut self,
+    client: &ClientState,
+    objects: &ObjectPool,
+    player: PlayerHandle,
+    targets: &[Target],
+    prompt: &str,
+  ) -> InterfaceResult<Vec<Target>> {
+    let options: InterfaceResult<Vec<String>> = targets
+      .iter()
+      .map(|o| match o {
+        Target::Player(player_handle) => {
+          let player = client.get_player(*player_handle);
+          Ok(format!("{}", player.name))
+        }
+        Target::Object(object_handle) => {
+          let object = objects.get(object_handle);
+          match object {
+            Some(_) => todo!(),
+            None => Err(InterfaceError::Waiting),
+          }
+        }
+      })
+      .collect();
+    let options = options?;
+
+    let result = MultiSelect::with_theme(&ColorfulTheme::default())
+      .with_prompt(format!(
+        "Player {}, {}: {}",
+        player,
+        client.get_player(player).name,
+        prompt,
+      ))
+      .items(&options)
+      .interact()
+      .unwrap();
+    Ok(result.into_iter().map(|idx| targets[idx].clone()).collect())
   }
 }

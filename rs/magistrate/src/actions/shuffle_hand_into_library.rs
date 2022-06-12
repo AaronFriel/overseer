@@ -9,7 +9,7 @@ use serde_diff::SerdeDiff;
 
 use super::shuffle_library::ShuffleLibrary;
 
-#[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 #[derive(DynPartialEq, Serialize, Deserialize, SerdeDiff)]
 pub struct ShuffleHandIntoLibrary {
   player: PlayerHandle,
@@ -18,7 +18,7 @@ pub struct ShuffleHandIntoLibrary {
 }
 
 impl ShuffleHandIntoLibrary {
-  pub fn new(player: PlayerHandle, game: &mut Game) -> Self {
+  pub fn new(game: &mut Game, player: PlayerHandle) -> Self {
     Self {
       player,
       decision: game.reserve_decision(),
@@ -30,7 +30,15 @@ impl ShuffleHandIntoLibrary {
 #[typetag::serde]
 impl SimpleAction for ShuffleHandIntoLibrary {
   fn perform(&mut self, game: &mut Game) -> ActionResult<()> {
-    use ActionErr::*;
+    ComplexAction::apply(self, game)
+  }
+}
+
+impl ComplexAction for ShuffleHandIntoLibrary {
+  type Result = ();
+
+  fn apply(&mut self, game: &mut Game) -> ActionResult<Self::Result> {
+    use ActionError::*;
 
     let player_handle = self.player;
 

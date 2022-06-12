@@ -39,7 +39,7 @@ impl DecisionList {
   }
 
   pub(crate) fn contains(&self, decision: DecisionHandle) -> bool {
-    self.entries.len() > decision.to_index()
+    self.entries.len() > decision.to_index() && self.get(decision).is_some()
   }
 
   #[allow(dead_code)]

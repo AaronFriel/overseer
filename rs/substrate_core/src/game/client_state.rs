@@ -63,6 +63,22 @@ impl ClientState {
     (0..self.players.len()).map(PlayerHandle::from_index)
   }
 
+  pub fn get_players_from(&self, player: PlayerHandle) -> impl Iterator<Item = PlayerHandle> {
+    let len = self.players.len();
+
+    (0..self.players.len())
+      .map(move |i| (i + player.to_index()) % len)
+      .map(PlayerHandle::from_index)
+  }
+
+  pub fn get_players_from_active(&self) -> Option<impl Iterator<Item = PlayerHandle>> {
+    if let Some(active_player) = self.active_player {
+      Some(self.get_players_from(active_player))
+    } else {
+      None
+    }
+  }
+
   pub fn get_player(&self, player: PlayerHandle) -> &Player {
     &self.players[player.to_index()]
   }

@@ -3,7 +3,7 @@ use overseer_substrate::{action::*, game::*, interface::DecisionHandle};
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
-#[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 #[derive(DynPartialEq, Serialize, Deserialize)]
 pub struct MulliganDiscard {
   player: PlayerHandle,
@@ -13,25 +13,45 @@ pub struct MulliganDiscard {
 }
 
 impl MulliganDiscard {
-  pub fn new(
-    game: &mut Game,
-    player: PlayerHandle,
-    discard_to: usize,
-    discards: SmallVec<[ObjectHandle; 7]>,
-  ) -> Self {
+  pub fn new(game: &mut Game, player: PlayerHandle, discard_to: usize) -> Self {
     Self {
       player,
       discard_to,
       decision: game.reserve_decision(),
-      discards,
+      discards: SmallVec::new(),
     }
   }
 }
 
 #[typetag::serde]
 impl SimpleAction for MulliganDiscard {
-  fn perform(&mut self, _: &mut Game) -> ActionResult<()> {
-    // use ActionResult::*;
+  fn perform(&mut self, game: &mut Game) -> ActionResult<()> {
+    ComplexAction::apply(self, game)
+  }
+}
+
+impl ComplexAction for MulliganDiscard {
+  type Result = ();
+
+  fn apply(&mut self, game: &mut Game) -> ActionResult<Self::Result> {
+    let hand: Vec<_> = game.client.get_player(self.player).hand.iter().collect();
+    let cards_in_hand = hand.len();
+
+    let quantity_to_discard = cards_in_hand - self.discard_to;
+
+    if quantity_to_discard == 0 {
+      return Ok(());
+    }
+
+    let question = format!(
+      "Return {} cards to the bottom of your library.",
+      quantity_to_discard
+    );
+    let result = game
+      .wrap_prompt(self.decision, &question, |client, server, interface| {
+        interface.prompt_mulligan_return(client, server, self.player, &question)
+      })
+      .map_err(From::from)?;
 
     todo!()
 
