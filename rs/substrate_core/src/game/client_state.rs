@@ -7,6 +7,7 @@ use serde_diff::SerdeDiff;
 use crate::{
   action::{ChoicePrompt, SimpleAction},
   game::{Battlefield, Card, Command, Exile, ObjectHandle, ObjectPool, Player, Stack, Zone},
+  interface::DecisionList,
 };
 
 #[derive(Clone, Hash, Debug, PartialEq, SerdeDiff, Serialize, Deserialize)]
@@ -32,6 +33,8 @@ pub struct ClientState {
   pub stack: Zone<Stack>,
   pub exile: Zone<Exile>,
   pub command: Zone<Command>,
+
+  pub decisions: DecisionList,
 }
 
 impl ClientState {

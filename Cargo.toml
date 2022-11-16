@@ -1,11 +1,12 @@
 [workspace]
 
 members = [
-  "rs/magistrate",
-  "rs/substrate_macros",
-  "rs/substrate_core",
-  "rs/util",
-  "rs/substrate",
+  # "rs/magistrate",
+  # "rs/substrate_macros",
+  # "rs/substrate_core",
+  # "rs/util",
+  # "rs/substrate",
+  "rs/sandbox",
 ]
 #  "rs/cli",  # "rs/sandbox",
 

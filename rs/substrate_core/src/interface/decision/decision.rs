@@ -1,26 +1,43 @@
 use overseer_util::Handle;
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use crate::game::PlayerHandle;
 
 #[derive(Clone, Hash, Debug)]
 #[derive(Serialize, Deserialize)]
+#[serde(transparent)]
+struct DecisionValue {
+  pub(crate) serialized: String,
+}
+
+impl DecisionValue {
+  pub fn get<T: DeserializeOwned>(&self) -> serde_json::Result<T> {
+    serde_json::from_str(&self.serialized)
+  }
+}
+
+#[derive(Clone, Hash, Debug)]
+#[derive(Serialize, Deserialize)]
 pub enum Decision {
-  Reserved {
-    question: String,
-    player: Option<PlayerHandle>,
-  },
   Public {
     question: String,
-    value: String,
+    value: DecisionValue,
     applied: bool,
   },
   Private {
     question: String,
-    server_value: String,
-    player_values: Vec<String>,
+    server_value: DecisionValue,
+    player_values: Vec<DecisionValue>,
     applied: bool,
   },
+}
+
+#[cfg(test)]
+mod test {
+  use super::*;
+
+  #[test]
+  fn test_micro_game() {}
 }
 
 impl Decision {

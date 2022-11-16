@@ -7,7 +7,6 @@ use super::Decision;
 #[derive(Serialize, Deserialize)]
 pub struct DecisionList {
   pub entries: Vec<Option<Decision>>,
-  reserved: usize,
 }
 
 make_handle!(DecisionHandle, usize);
@@ -16,26 +15,11 @@ impl DecisionList {
   pub fn new() -> Self {
     DecisionList {
       entries: Vec::new(),
-      reserved: 0,
     }
   }
 
   pub fn from_entries(entries: Vec<Option<Decision>>) -> Self {
-    DecisionList {
-      entries,
-      reserved: 0,
-    }
-  }
-
-  pub fn reserve(&mut self) -> DecisionHandle {
-    let reserved = self.reserved;
-    self.reserved += 1;
-    DecisionHandle::from_index(reserved)
-  }
-
-  #[cfg(test)]
-  pub(crate) fn reset_reserved(&mut self) {
-    self.reserved = 0;
+    DecisionList { entries }
   }
 
   pub(crate) fn contains(&self, decision: DecisionHandle) -> bool {

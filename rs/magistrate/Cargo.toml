@@ -1,15 +1,15 @@
 [package]
-name = "overseer_magistrate"
-version = "0.1.0"
 authors = ["Aaron Friel <mayreply@aaronfriel.com>"]
 edition = "2018"
+name = "overseer_magistrate"
+version = "0.1.0"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
 
 [features]
-default = ["server"]
 client = []
+default = ["server"]
 server = ["rand"]
 vanguard = ["overseer_substrate/vanguard"]
 # default = ["console_error_panic_hook"]
@@ -19,10 +19,10 @@ vanguard = ["overseer_substrate/vanguard"]
 # logging them with `console.error`. This is great for development, but requires
 # all the `std::fmt` and `std::panicking` infrastructure, so isn't great for
 # code size when deploying.
-console_error_panic_hook = { version = "~0.1.6", optional = true }
+console_error_panic_hook = {version = "~0.1.6", optional = true}
 dyn_partial_eq = "~0.1.2"
-overseer_substrate = { path = "../substrate" }
-overseer_util = { path = "../util" }
+overseer_substrate = {path = "../substrate"}
+overseer_util = {path = "../util"}
 serde = "^1.0.110"
 serde_derive = "^1.0.110"
 serde_json = "^1.0.53"
@@ -33,29 +33,24 @@ wasm-bindgen = "~0.2.69"
 # allocator, however.
 #
 # Unfortunately, `wee_alloc` requires nightly Rust when targeting wasm for now.
-wee_alloc = { version = "~0.4.5", optional = true }
-smallvec = { version = "^1.7.0", features = ["serde"] }
-rand = { version = "~0.8.3", optional = true, features = ["getrandom"] }
 cfg-if = "^1.0.0"
+rand = {version = "~0.8.3", optional = true, features = ["getrandom"]}
 replace_with = "~0.1.7"
+smallvec = {version = "^1.7.0", features = ["serde"]}
 tracing = "0.1.29"
+wee_alloc = {version = "~0.4.5", optional = true}
 
 [dependencies.serde-diff]
-git = "https://github.com/AaronFriel/serde-diff"
 features = ["im", "smallvec"]
+git = "https://github.com/AaronFriel/serde-diff"
 rev = "ccef091feda60c0d195e7e87217933aef62c0f05"
 
-[dependencies.typetag]
-git = "https://github.com/AaronFriel/typetag"
-features =["runtime"]
-default-features = false
-
 [dev-dependencies]
-wasm-bindgen-test = "~0.3.20"
-insta = { version = "^1.8.0", features = ["ron", "redactions"] }
-dialoguer = { version = "~0.9.0", features = ["fuzzy-select"] }
-rand = { version = "~0.8.3", features = ["getrandom"] }
-serde_yaml = "~0.8.21"
+dialoguer = {version = "~0.9.0", features = ["fuzzy-select"]}
 env_logger = "0.9.0"
-tracing-subscriber = { version = "0.3.0", features = ["env-filter", "fmt", "json", "std"] }
-test-log = { version = "0.2.8", default-features = false, features = ["trace"] }
+insta = {version = "^1.8.0", features = ["ron", "redactions"]}
+rand = {version = "~0.8.3", features = ["getrandom"]}
+serde_yaml = "~0.8.21"
+test-log = {version = "0.2.8", default-features = false, features = ["trace"]}
+tracing-subscriber = {version = "0.3.0", features = ["env-filter", "fmt", "json", "std"]}
+wasm-bindgen-test = "~0.3.20"
