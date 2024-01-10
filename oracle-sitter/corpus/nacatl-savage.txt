@@ -1,0 +1,14 @@
+================================================================================
+"Nacatl Savage"
+================================================================================
+
+Protection from artifacts
+
+--------------------------------------------------------------------------------
+
+(rules_line
+  (keyword_ability_list
+    (keyword_ability
+      (keyword_ability_protection
+        (protection_qualifier
+          (qualifier_type))))))

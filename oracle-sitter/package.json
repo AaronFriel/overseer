@@ -1,0 +1,24 @@
+{
+  "name": "oracle-sitter",
+  "version": "0.0.1",
+  "description": "",
+  "main": "bindings/node",
+  "scripts": {
+    "tree-sitter": "tree-sitter",
+    "test": "tree-sitter test",
+    "format": "prettier grammar.js --no-cache --no-parallel --write"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "eslint": "^8.56.0",
+    "nan": "^2.18.0",
+    "prettier": "^4.0.0-alpha.8",
+    "tree-sitter": "^0.20.6",
+    "tree-sitter-cli": "^0.20.8",
+    "tsx": "^4.6.2"
+  },
+  "dependencies": {
+    "pluralize": "^8.0.0"
+  }
+}

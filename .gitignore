@@ -1,5 +1,6 @@
 /target*/
 /data/
+node_modules
 *.pending-snap
 cobertura.xml
 results.xml

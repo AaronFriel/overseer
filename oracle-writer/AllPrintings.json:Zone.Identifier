@@ -1,0 +1,4 @@
+[ZoneTransfer]
+ZoneId=3
+ReferrerUrl=https://mtgjson.com/downloads/all-files/
+HostUrl=https://mtgjson.com/api/v5/AllPrintings.json

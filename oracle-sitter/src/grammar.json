@@ -1,0 +1,1905 @@
+{
+  "name": "mtg_oracle",
+  "rules": {
+    "rules_line": {
+      "type": "CHOICE",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "mana_ability"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "keyword_ability_list"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "line_effect"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "unblockable_ability"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "line_activated_ability"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "line_static_ability"
+        }
+      ]
+    },
+    "keyword_ability_list": {
+      "type": "PREC_LEFT",
+      "value": 0,
+      "content": {
+        "type": "SEQ",
+        "members": [
+          {
+            "type": "SYMBOL",
+            "name": "keyword_ability"
+          },
+          {
+            "type": "REPEAT",
+            "content": {
+              "type": "SEQ",
+              "members": [
+                {
+                  "type": "STRING",
+                  "value": ","
+                },
+                {
+                  "type": "SYMBOL",
+                  "name": "keyword_ability"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "line_effect": {
+      "type": "REPEAT1",
+      "content": {
+        "type": "SEQ",
+        "members": [
+          {
+            "type": "SYMBOL",
+            "name": "effect"
+          },
+          {
+            "type": "STRING",
+            "value": "."
+          }
+        ]
+      }
+    },
+    "line_static_ability": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "static_ability_subject"
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "SEQ",
+              "members": [
+                {
+                  "type": "STRING",
+                  "value": "have"
+                },
+                {
+                  "type": "CHOICE",
+                  "members": [
+                    {
+                      "type": "STRING",
+                      "value": "hexproof from"
+                    },
+                    {
+                      "type": "BLANK"
+                    }
+                  ]
+                },
+                {
+                  "type": "SYMBOL",
+                  "name": "static_ability_effect"
+                }
+              ]
+            },
+            {
+              "type": "BLANK"
+            }
+          ]
+        }
+      ]
+    },
+    "static_ability_subject": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "SYMBOL",
+              "name": "continuous_tense_qualifier"
+            },
+            {
+              "type": "BLANK"
+            }
+          ]
+        },
+        {
+          "type": "SYMBOL",
+          "name": "subject_nontarget"
+        }
+      ]
+    },
+    "static_ability_effect": {
+      "type": "CHOICE",
+      "members": [
+        {
+          "type": "SEQ",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "have"
+            },
+            {
+              "type": "SYMBOL",
+              "name": "keyword_ability"
+            }
+          ]
+        },
+        {
+          "type": "SYMBOL",
+          "name": "protection_qualifier"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "keyword_ability_list"
+        }
+      ]
+    },
+    "continuous_tense_qualifier": {
+      "type": "CHOICE",
+      "members": [
+        {
+          "type": "STRING",
+          "value": "all"
+        },
+        {
+          "type": "STRING",
+          "value": "each"
+        },
+        {
+          "type": "STRING",
+          "value": "every"
+        }
+      ]
+    },
+    "draw_effect": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "continuous_tense_qualifier"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "player"
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "Draws"
+            },
+            {
+              "type": "STRING",
+              "value": "draws"
+            }
+          ]
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "CHOICE",
+              "members": [
+                {
+                  "type": "STRING",
+                  "value": "A"
+                },
+                {
+                  "type": "STRING",
+                  "value": "a"
+                }
+              ]
+            },
+            {
+              "type": "BLANK"
+            }
+          ]
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "SYMBOL",
+              "name": "number"
+            },
+            {
+              "type": "SYMBOL",
+              "name": "textual_number"
+            }
+          ]
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "Card"
+            },
+            {
+              "type": "STRING",
+              "value": "card"
+            }
+          ]
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "CHOICE",
+              "members": [
+                {
+                  "type": "STRING",
+                  "value": "S"
+                },
+                {
+                  "type": "STRING",
+                  "value": "s"
+                }
+              ]
+            },
+            {
+              "type": "BLANK"
+            }
+          ]
+        }
+      ]
+    },
+    "effect": {
+      "type": "CHOICE",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "one_shot_effect"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "draw_effect"
+        }
+      ]
+    },
+    "line_activated_ability": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "cost"
+        },
+        {
+          "type": "STRING",
+          "value": ":"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "effect"
+        },
+        {
+          "type": "STRING",
+          "value": "."
+        }
+      ]
+    },
+    "keyword_ability": {
+      "type": "CHOICE",
+      "members": [
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "CHOICE",
+              "members": [
+                {
+                  "type": "STRING",
+                  "value": "Flying"
+                },
+                {
+                  "type": "STRING",
+                  "value": "flying"
+                }
+              ]
+            },
+            {
+              "type": "CHOICE",
+              "members": [
+                {
+                  "type": "STRING",
+                  "value": "First strike"
+                },
+                {
+                  "type": "STRING",
+                  "value": "first strike"
+                }
+              ]
+            },
+            {
+              "type": "CHOICE",
+              "members": [
+                {
+                  "type": "STRING",
+                  "value": "Lifelink"
+                },
+                {
+                  "type": "STRING",
+                  "value": "lifelink"
+                }
+              ]
+            },
+            {
+              "type": "CHOICE",
+              "members": [
+                {
+                  "type": "STRING",
+                  "value": "Vigilance"
+                },
+                {
+                  "type": "STRING",
+                  "value": "vigilance"
+                }
+              ]
+            },
+            {
+              "type": "CHOICE",
+              "members": [
+                {
+                  "type": "STRING",
+                  "value": "Deathtouch"
+                },
+                {
+                  "type": "STRING",
+                  "value": "deathtouch"
+                }
+              ]
+            },
+            {
+              "type": "CHOICE",
+              "members": [
+                {
+                  "type": "STRING",
+                  "value": "Haste"
+                },
+                {
+                  "type": "STRING",
+                  "value": "haste"
+                }
+              ]
+            },
+            {
+              "type": "CHOICE",
+              "members": [
+                {
+                  "type": "STRING",
+                  "value": "Visit"
+                },
+                {
+                  "type": "STRING",
+                  "value": "visit"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "SYMBOL",
+          "name": "keyword_ability_protection"
+        }
+      ]
+    },
+    "one_shot_effect": {
+      "type": "PREC",
+      "value": 1,
+      "content": {
+        "type": "SEQ",
+        "members": [
+          {
+            "type": "SYMBOL",
+            "name": "action_verb"
+          },
+          {
+            "type": "CHOICE",
+            "members": [
+              {
+                "type": "SYMBOL",
+                "name": "subject"
+              },
+              {
+                "type": "SYMBOL",
+                "name": "subject_list"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "pt_modifier_effect": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "continuous_tense_qualifier"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "qualifier_type"
+        },
+        {
+          "type": "STRING",
+          "value": "get"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "pt_modifier"
+        }
+      ]
+    },
+    "subject_list": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "subject"
+        },
+        {
+          "type": "REPEAT",
+          "content": {
+            "type": "SEQ",
+            "members": [
+              {
+                "type": "STRING",
+                "value": "and"
+              },
+              {
+                "type": "SYMBOL",
+                "name": "subject"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "subject": {
+      "type": "CHOICE",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "subject_target"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "subject_nontarget"
+        }
+      ]
+    },
+    "destroy_all_subtype": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "STRING",
+          "value": "Destroy"
+        },
+        {
+          "type": "STRING",
+          "value": "all"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "any_subtype"
+        }
+      ]
+    },
+    "action_verb": {
+      "type": "CHOICE",
+      "members": [
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "Exile"
+            },
+            {
+              "type": "STRING",
+              "value": "exile"
+            }
+          ]
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "Destroy"
+            },
+            {
+              "type": "STRING",
+              "value": "destroy"
+            }
+          ]
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "Tap"
+            },
+            {
+              "type": "STRING",
+              "value": "tap"
+            }
+          ]
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "Untap"
+            },
+            {
+              "type": "STRING",
+              "value": "untap"
+            }
+          ]
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "Discard"
+            },
+            {
+              "type": "STRING",
+              "value": "discard"
+            }
+          ]
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "Sacrifice"
+            },
+            {
+              "type": "STRING",
+              "value": "sacrifice"
+            }
+          ]
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "Create"
+            },
+            {
+              "type": "STRING",
+              "value": "create"
+            }
+          ]
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "Counter"
+            },
+            {
+              "type": "STRING",
+              "value": "counter"
+            }
+          ]
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "Draw"
+            },
+            {
+              "type": "STRING",
+              "value": "draw"
+            }
+          ]
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "Mill"
+            },
+            {
+              "type": "STRING",
+              "value": "mill"
+            }
+          ]
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "Scry"
+            },
+            {
+              "type": "STRING",
+              "value": "scry"
+            }
+          ]
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "Gain"
+            },
+            {
+              "type": "STRING",
+              "value": "gain"
+            }
+          ]
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "Add"
+            },
+            {
+              "type": "STRING",
+              "value": "add"
+            }
+          ]
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "Counter"
+            },
+            {
+              "type": "STRING",
+              "value": "counter"
+            }
+          ]
+        }
+      ]
+    },
+    "mana_effect": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "STRING",
+          "value": "Add"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "mana_cost"
+        }
+      ]
+    },
+    "mana_ability": {
+      "type": "PREC_LEFT",
+      "value": 1,
+      "content": {
+        "type": "SEQ",
+        "members": [
+          {
+            "type": "STRING",
+            "value": "{T}"
+          },
+          {
+            "type": "STRING",
+            "value": ":"
+          },
+          {
+            "type": "STRING",
+            "value": "Add"
+          },
+          {
+            "type": "SYMBOL",
+            "name": "mana_cost"
+          }
+        ]
+      }
+    },
+    "unblockable_ability": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "STRING",
+          "value": "~"
+        },
+        {
+          "type": "STRING",
+          "value": "can't be blocked"
+        }
+      ]
+    },
+    "player": {
+      "type": "CHOICE",
+      "members": [
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "Player"
+            },
+            {
+              "type": "STRING",
+              "value": "player"
+            }
+          ]
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "Players"
+            },
+            {
+              "type": "STRING",
+              "value": "players"
+            }
+          ]
+        }
+      ]
+    },
+    "subject_target": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "SYMBOL",
+              "name": "finite_quantity"
+            },
+            {
+              "type": "BLANK"
+            }
+          ]
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "Target"
+            },
+            {
+              "type": "STRING",
+              "value": "target"
+            }
+          ]
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "SYMBOL",
+              "name": "qualifier_color"
+            },
+            {
+              "type": "BLANK"
+            }
+          ]
+        },
+        {
+          "type": "REPEAT1",
+          "content": {
+            "type": "SYMBOL",
+            "name": "qualifier"
+          }
+        }
+      ]
+    },
+    "tap_colored_creature": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "mana_cost"
+        },
+        {
+          "type": "STRING",
+          "value": ":"
+        },
+        {
+          "type": "STRING",
+          "value": "Tap"
+        },
+        {
+          "type": "STRING",
+          "value": "target"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "qualifier_color"
+        },
+        {
+          "type": "STRING",
+          "value": "creature"
+        },
+        {
+          "type": "STRING",
+          "value": "."
+        }
+      ]
+    },
+    "subject_nontarget": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "non_finite_quantity"
+        },
+        {
+          "type": "REPEAT1",
+          "content": {
+            "type": "SYMBOL",
+            "name": "qualifier"
+          }
+        }
+      ]
+    },
+    "finite_quantity": {
+      "type": "CHOICE",
+      "members": [
+        {
+          "type": "SEQ",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "up to"
+            },
+            {
+              "type": "SYMBOL",
+              "name": "number"
+            }
+          ]
+        },
+        {
+          "type": "STRING",
+          "value": "another"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "number"
+        }
+      ]
+    },
+    "non_finite_quantity": {
+      "type": "CHOICE",
+      "members": [
+        {
+          "type": "STRING",
+          "value": "all"
+        },
+        {
+          "type": "STRING",
+          "value": "each"
+        },
+        {
+          "type": "STRING",
+          "value": "every"
+        },
+        {
+          "type": "STRING",
+          "value": "any number of"
+        }
+      ]
+    },
+    "qualifier": {
+      "type": "CHOICE",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "qualifier_color"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "qualifier_supertype"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "qualifier_type"
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "Untapped"
+            },
+            {
+              "type": "STRING",
+              "value": "untapped"
+            }
+          ]
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "Attacking"
+            },
+            {
+              "type": "STRING",
+              "value": "attacking"
+            }
+          ]
+        },
+        {
+          "type": "SYMBOL",
+          "name": "qualifier_control"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "subtype"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "qualifier_pt"
+        }
+      ]
+    },
+    "qualifier_control": {
+      "type": "CHOICE",
+      "members": [
+        {
+          "type": "STRING",
+          "value": "you control"
+        },
+        {
+          "type": "STRING",
+          "value": "your control"
+        },
+        {
+          "type": "STRING",
+          "value": "opponent's control"
+        }
+      ]
+    },
+    "mana_color": {
+      "type": "CHOICE",
+      "members": [
+        {
+          "type": "STRING",
+          "value": "W"
+        },
+        {
+          "type": "STRING",
+          "value": "U"
+        },
+        {
+          "type": "STRING",
+          "value": "B"
+        },
+        {
+          "type": "STRING",
+          "value": "R"
+        },
+        {
+          "type": "STRING",
+          "value": "G"
+        }
+      ]
+    },
+    "plain_mana_cost_symbol": {
+      "type": "SYMBOL",
+      "name": "mana_color"
+    },
+    "generic_mana_cost_symbol": {
+      "type": "CHOICE",
+      "members": [
+        {
+          "type": "PATTERN",
+          "value": "[0-9]+"
+        },
+        {
+          "type": "STRING",
+          "value": "X"
+        }
+      ]
+    },
+    "colorless_mana_cost_symbol": {
+      "type": "STRING",
+      "value": "C"
+    },
+    "snow_mana_cost_symbol": {
+      "type": "STRING",
+      "value": "S"
+    },
+    "hybrid_mana_cost_symbol": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "SYMBOL",
+              "name": "mana_color"
+            },
+            {
+              "type": "STRING",
+              "value": "2"
+            }
+          ]
+        },
+        {
+          "type": "STRING",
+          "value": "/"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "mana_color"
+        }
+      ]
+    },
+    "phyrexian_mana_cost_symbol": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "mana_color"
+        },
+        {
+          "type": "STRING",
+          "value": "/"
+        },
+        {
+          "type": "STRING",
+          "value": "P"
+        }
+      ]
+    },
+    "mana_cost_symbol": {
+      "type": "CHOICE",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "plain_mana_cost_symbol"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "generic_mana_cost_symbol"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "colorless_mana_cost_symbol"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "snow_mana_cost_symbol"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "hybrid_mana_cost_symbol"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "phyrexian_mana_cost_symbol"
+        }
+      ]
+    },
+    "mana_cost": {
+      "type": "REPEAT1",
+      "content": {
+        "type": "SEQ",
+        "members": [
+          {
+            "type": "STRING",
+            "value": "{"
+          },
+          {
+            "type": "SYMBOL",
+            "name": "mana_cost_symbol"
+          },
+          {
+            "type": "STRING",
+            "value": "}"
+          }
+        ]
+      }
+    },
+    "action_cost": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "action_verb"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "subject"
+        }
+      ]
+    },
+    "cost": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "SYMBOL",
+              "name": "mana_cost"
+            },
+            {
+              "type": "STRING",
+              "value": "{T}"
+            },
+            {
+              "type": "STRING",
+              "value": "{Q}"
+            },
+            {
+              "type": "SYMBOL",
+              "name": "action_cost"
+            },
+            {
+              "type": "SYMBOL",
+              "name": "cost_life_payment"
+            }
+          ]
+        },
+        {
+          "type": "REPEAT",
+          "content": {
+            "type": "SEQ",
+            "members": [
+              {
+                "type": "STRING",
+                "value": ","
+              },
+              {
+                "type": "CHOICE",
+                "members": [
+                  {
+                    "type": "SYMBOL",
+                    "name": "mana_cost"
+                  },
+                  {
+                    "type": "STRING",
+                    "value": "{T}"
+                  },
+                  {
+                    "type": "STRING",
+                    "value": "{Q}"
+                  },
+                  {
+                    "type": "SYMBOL",
+                    "name": "action_cost"
+                  },
+                  {
+                    "type": "SYMBOL",
+                    "name": "cost_life_payment"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "cost_life_payment": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "STRING",
+          "value": "Pay"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "number"
+        },
+        {
+          "type": "STRING",
+          "value": "life"
+        }
+      ]
+    },
+    "qualifier_color": {
+      "type": "CHOICE",
+      "members": [
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "White"
+            },
+            {
+              "type": "STRING",
+              "value": "white"
+            }
+          ]
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "Blue"
+            },
+            {
+              "type": "STRING",
+              "value": "blue"
+            }
+          ]
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "Black"
+            },
+            {
+              "type": "STRING",
+              "value": "black"
+            }
+          ]
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "Red"
+            },
+            {
+              "type": "STRING",
+              "value": "red"
+            }
+          ]
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "Green"
+            },
+            {
+              "type": "STRING",
+              "value": "green"
+            }
+          ]
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "Colorless"
+            },
+            {
+              "type": "STRING",
+              "value": "colorless"
+            }
+          ]
+        }
+      ]
+    },
+    "qualifier_supertype": {
+      "type": "CHOICE",
+      "members": [
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "legendary"
+            },
+            {
+              "type": "STRING",
+              "value": "legendaries"
+            },
+            {
+              "type": "STRING",
+              "value": "legendary"
+            },
+            {
+              "type": "STRING",
+              "value": "legendaries"
+            }
+          ]
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "basic"
+            },
+            {
+              "type": "STRING",
+              "value": "basics"
+            },
+            {
+              "type": "STRING",
+              "value": "basic"
+            },
+            {
+              "type": "STRING",
+              "value": "basics"
+            }
+          ]
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "snow"
+            },
+            {
+              "type": "STRING",
+              "value": "snows"
+            },
+            {
+              "type": "STRING",
+              "value": "snow"
+            },
+            {
+              "type": "STRING",
+              "value": "snows"
+            }
+          ]
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "world"
+            },
+            {
+              "type": "STRING",
+              "value": "worlds"
+            },
+            {
+              "type": "STRING",
+              "value": "world"
+            },
+            {
+              "type": "STRING",
+              "value": "worlds"
+            }
+          ]
+        }
+      ]
+    },
+    "qualifier_type": {
+      "type": "CHOICE",
+      "members": [
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "creature"
+            },
+            {
+              "type": "STRING",
+              "value": "creatures"
+            },
+            {
+              "type": "STRING",
+              "value": "creature"
+            },
+            {
+              "type": "STRING",
+              "value": "creatures"
+            }
+          ]
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "land"
+            },
+            {
+              "type": "STRING",
+              "value": "lands"
+            },
+            {
+              "type": "STRING",
+              "value": "land"
+            },
+            {
+              "type": "STRING",
+              "value": "lands"
+            }
+          ]
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "artifact"
+            },
+            {
+              "type": "STRING",
+              "value": "artifacts"
+            },
+            {
+              "type": "STRING",
+              "value": "artifact"
+            },
+            {
+              "type": "STRING",
+              "value": "artifacts"
+            }
+          ]
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "enchantment"
+            },
+            {
+              "type": "STRING",
+              "value": "enchantments"
+            },
+            {
+              "type": "STRING",
+              "value": "enchantment"
+            },
+            {
+              "type": "STRING",
+              "value": "enchantments"
+            }
+          ]
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "instant"
+            },
+            {
+              "type": "STRING",
+              "value": "instants"
+            },
+            {
+              "type": "STRING",
+              "value": "instant"
+            },
+            {
+              "type": "STRING",
+              "value": "instants"
+            }
+          ]
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "sorcery"
+            },
+            {
+              "type": "STRING",
+              "value": "sorceries"
+            },
+            {
+              "type": "STRING",
+              "value": "sorcery"
+            },
+            {
+              "type": "STRING",
+              "value": "sorceries"
+            }
+          ]
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "planeswalker"
+            },
+            {
+              "type": "STRING",
+              "value": "planeswalkers"
+            },
+            {
+              "type": "STRING",
+              "value": "planeswalker"
+            },
+            {
+              "type": "STRING",
+              "value": "planeswalkers"
+            }
+          ]
+        }
+      ]
+    },
+    "subtype": {
+      "type": "SYMBOL",
+      "name": "any_subtype"
+    },
+    "modifier": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "SYMBOL",
+              "name": "qualifier_pt"
+            },
+            {
+              "type": "BLANK"
+            }
+          ]
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "CHOICE",
+              "members": [
+                {
+                  "type": "CHOICE",
+                  "members": [
+                    {
+                      "type": "STRING",
+                      "value": "Flying"
+                    },
+                    {
+                      "type": "STRING",
+                      "value": "flying"
+                    }
+                  ]
+                },
+                {
+                  "type": "CHOICE",
+                  "members": [
+                    {
+                      "type": "STRING",
+                      "value": "Hexproof"
+                    },
+                    {
+                      "type": "STRING",
+                      "value": "hexproof"
+                    }
+                  ]
+                },
+                {
+                  "type": "CHOICE",
+                  "members": [
+                    {
+                      "type": "STRING",
+                      "value": "Tapped"
+                    },
+                    {
+                      "type": "STRING",
+                      "value": "tapped"
+                    }
+                  ]
+                },
+                {
+                  "type": "CHOICE",
+                  "members": [
+                    {
+                      "type": "STRING",
+                      "value": "Untapped"
+                    },
+                    {
+                      "type": "STRING",
+                      "value": "untapped"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "SYMBOL",
+              "name": "pt_modifier"
+            }
+          ]
+        }
+      ]
+    },
+    "qualifier_pt": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "STRING",
+          "value": "with"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "pt_modifier"
+        }
+      ]
+    },
+    "pt_modifier": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "+"
+            },
+            {
+              "type": "STRING",
+              "value": "-"
+            }
+          ]
+        },
+        {
+          "type": "SYMBOL",
+          "name": "number"
+        },
+        {
+          "type": "STRING",
+          "value": "/"
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "+"
+            },
+            {
+              "type": "STRING",
+              "value": "-"
+            }
+          ]
+        },
+        {
+          "type": "SYMBOL",
+          "name": "number"
+        }
+      ]
+    },
+    "keyword_ability_protection": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "Protection"
+            },
+            {
+              "type": "STRING",
+              "value": "protection"
+            }
+          ]
+        },
+        {
+          "type": "STRING",
+          "value": "from"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "protection_qualifier"
+        }
+      ]
+    },
+    "protection_qualifier": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "SYMBOL",
+              "name": "qualifier_color"
+            },
+            {
+              "type": "CHOICE",
+              "members": [
+                {
+                  "type": "STRING",
+                  "value": "Multicolored"
+                },
+                {
+                  "type": "STRING",
+                  "value": "multicolored"
+                }
+              ]
+            },
+            {
+              "type": "CHOICE",
+              "members": [
+                {
+                  "type": "CHOICE",
+                  "members": [
+                    {
+                      "type": "STRING",
+                      "value": "Everything"
+                    },
+                    {
+                      "type": "STRING",
+                      "value": "everything"
+                    }
+                  ]
+                },
+                {
+                  "type": "CHOICE",
+                  "members": [
+                    {
+                      "type": "STRING",
+                      "value": "Monocolored"
+                    },
+                    {
+                      "type": "STRING",
+                      "value": "monocolored"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "SYMBOL",
+              "name": "qualifier_type"
+            }
+          ]
+        }
+      ]
+    },
+    "number": {
+      "type": "PATTERN",
+      "value": "[0-9]+"
+    },
+    "textual_number": {
+      "type": "CHOICE",
+      "members": [
+        {
+          "type": "STRING",
+          "value": "one"
+        },
+        {
+          "type": "STRING",
+          "value": "two"
+        },
+        {
+          "type": "STRING",
+          "value": "three"
+        },
+        {
+          "type": "STRING",
+          "value": "four"
+        },
+        {
+          "type": "STRING",
+          "value": "five"
+        },
+        {
+          "type": "STRING",
+          "value": "six"
+        },
+        {
+          "type": "STRING",
+          "value": "seven"
+        },
+        {
+          "type": "STRING",
+          "value": "eight"
+        },
+        {
+          "type": "STRING",
+          "value": "nine"
+        },
+        {
+          "type": "STRING",
+          "value": "ten"
+        },
+        {
+          "type": "STRING",
+          "value": "eleven"
+        },
+        {
+          "type": "STRING",
+          "value": "twelve"
+        },
+        {
+          "type": "STRING",
+          "value": "thirteen"
+        },
+        {
+          "type": "STRING",
+          "value": "fourteen"
+        },
+        {
+          "type": "STRING",
+          "value": "fifteen"
+        },
+        {
+          "type": "STRING",
+          "value": "sixteen"
+        },
+        {
+          "type": "STRING",
+          "value": "seventeen"
+        },
+        {
+          "type": "STRING",
+          "value": "eighteen"
+        },
+        {
+          "type": "STRING",
+          "value": "nineteen"
+        },
+        {
+          "type": "STRING",
+          "value": "twenty"
+        }
+      ]
+    },
+    "any_subtype": {
+      "type": "PATTERN",
+      "value": "[A-Za-z-]+"
+    }
+  },
+  "extras": [
+    {
+      "type": "PATTERN",
+      "value": " "
+    }
+  ],
+  "conflicts": [],
+  "precedences": [],
+  "externals": [],
+  "inline": [],
+  "supertypes": []
+}
+

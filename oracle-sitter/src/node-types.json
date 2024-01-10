@@ -1,0 +1,1290 @@
+[
+  {
+    "type": "action_cost",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "action_verb",
+          "named": true
+        },
+        {
+          "type": "subject",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "action_verb",
+    "named": true,
+    "fields": {}
+  },
+  {
+    "type": "continuous_tense_qualifier",
+    "named": true,
+    "fields": {}
+  },
+  {
+    "type": "cost",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "action_cost",
+          "named": true
+        },
+        {
+          "type": "cost_life_payment",
+          "named": true
+        },
+        {
+          "type": "mana_cost",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "cost_life_payment",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "number",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "draw_effect",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "continuous_tense_qualifier",
+          "named": true
+        },
+        {
+          "type": "number",
+          "named": true
+        },
+        {
+          "type": "player",
+          "named": true
+        },
+        {
+          "type": "textual_number",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "effect",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "draw_effect",
+          "named": true
+        },
+        {
+          "type": "one_shot_effect",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "finite_quantity",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": false,
+      "types": [
+        {
+          "type": "number",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "generic_mana_cost_symbol",
+    "named": true,
+    "fields": {}
+  },
+  {
+    "type": "hybrid_mana_cost_symbol",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "mana_color",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "keyword_ability",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": false,
+      "types": [
+        {
+          "type": "keyword_ability_protection",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "keyword_ability_list",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "keyword_ability",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "keyword_ability_protection",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "protection_qualifier",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "line_activated_ability",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "cost",
+          "named": true
+        },
+        {
+          "type": "effect",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "line_effect",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "effect",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "line_static_ability",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "static_ability_effect",
+          "named": true
+        },
+        {
+          "type": "static_ability_subject",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "mana_ability",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "mana_cost",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "mana_color",
+    "named": true,
+    "fields": {}
+  },
+  {
+    "type": "mana_cost",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "mana_cost_symbol",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "mana_cost_symbol",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "colorless_mana_cost_symbol",
+          "named": true
+        },
+        {
+          "type": "generic_mana_cost_symbol",
+          "named": true
+        },
+        {
+          "type": "hybrid_mana_cost_symbol",
+          "named": true
+        },
+        {
+          "type": "phyrexian_mana_cost_symbol",
+          "named": true
+        },
+        {
+          "type": "plain_mana_cost_symbol",
+          "named": true
+        },
+        {
+          "type": "snow_mana_cost_symbol",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "non_finite_quantity",
+    "named": true,
+    "fields": {}
+  },
+  {
+    "type": "number",
+    "named": true,
+    "fields": {}
+  },
+  {
+    "type": "one_shot_effect",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "action_verb",
+          "named": true
+        },
+        {
+          "type": "subject",
+          "named": true
+        },
+        {
+          "type": "subject_list",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "phyrexian_mana_cost_symbol",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "mana_color",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "plain_mana_cost_symbol",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "mana_color",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "player",
+    "named": true,
+    "fields": {}
+  },
+  {
+    "type": "protection_qualifier",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": false,
+      "types": [
+        {
+          "type": "qualifier_color",
+          "named": true
+        },
+        {
+          "type": "qualifier_type",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "pt_modifier",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "number",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "qualifier",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": false,
+      "types": [
+        {
+          "type": "qualifier_color",
+          "named": true
+        },
+        {
+          "type": "qualifier_control",
+          "named": true
+        },
+        {
+          "type": "qualifier_pt",
+          "named": true
+        },
+        {
+          "type": "qualifier_supertype",
+          "named": true
+        },
+        {
+          "type": "qualifier_type",
+          "named": true
+        },
+        {
+          "type": "subtype",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "qualifier_color",
+    "named": true,
+    "fields": {}
+  },
+  {
+    "type": "qualifier_control",
+    "named": true,
+    "fields": {}
+  },
+  {
+    "type": "qualifier_pt",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "pt_modifier",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "qualifier_supertype",
+    "named": true,
+    "fields": {}
+  },
+  {
+    "type": "qualifier_type",
+    "named": true,
+    "fields": {}
+  },
+  {
+    "type": "snow_mana_cost_symbol",
+    "named": true,
+    "fields": {}
+  },
+  {
+    "type": "static_ability_effect",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "keyword_ability",
+          "named": true
+        },
+        {
+          "type": "keyword_ability_list",
+          "named": true
+        },
+        {
+          "type": "protection_qualifier",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "static_ability_subject",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "continuous_tense_qualifier",
+          "named": true
+        },
+        {
+          "type": "subject_nontarget",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "subject",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "subject_nontarget",
+          "named": true
+        },
+        {
+          "type": "subject_target",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "subject_list",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "subject",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "subject_nontarget",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "non_finite_quantity",
+          "named": true
+        },
+        {
+          "type": "qualifier",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "subject_target",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "finite_quantity",
+          "named": true
+        },
+        {
+          "type": "qualifier",
+          "named": true
+        },
+        {
+          "type": "qualifier_color",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "subtype",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "any_subtype",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "textual_number",
+    "named": true,
+    "fields": {}
+  },
+  {
+    "type": "unblockable_ability",
+    "named": true,
+    "fields": {}
+  },
+  {
+    "type": "+",
+    "named": false
+  },
+  {
+    "type": ",",
+    "named": false
+  },
+  {
+    "type": "-",
+    "named": false
+  },
+  {
+    "type": ".",
+    "named": false
+  },
+  {
+    "type": "/",
+    "named": false
+  },
+  {
+    "type": "2",
+    "named": false
+  },
+  {
+    "type": ":",
+    "named": false
+  },
+  {
+    "type": "A",
+    "named": false
+  },
+  {
+    "type": "Add",
+    "named": false
+  },
+  {
+    "type": "Attacking",
+    "named": false
+  },
+  {
+    "type": "B",
+    "named": false
+  },
+  {
+    "type": "Black",
+    "named": false
+  },
+  {
+    "type": "Blue",
+    "named": false
+  },
+  {
+    "type": "Card",
+    "named": false
+  },
+  {
+    "type": "Colorless",
+    "named": false
+  },
+  {
+    "type": "Counter",
+    "named": false
+  },
+  {
+    "type": "Create",
+    "named": false
+  },
+  {
+    "type": "Deathtouch",
+    "named": false
+  },
+  {
+    "type": "Destroy",
+    "named": false
+  },
+  {
+    "type": "Discard",
+    "named": false
+  },
+  {
+    "type": "Draw",
+    "named": false
+  },
+  {
+    "type": "Draws",
+    "named": false
+  },
+  {
+    "type": "Everything",
+    "named": false
+  },
+  {
+    "type": "Exile",
+    "named": false
+  },
+  {
+    "type": "First strike",
+    "named": false
+  },
+  {
+    "type": "Flying",
+    "named": false
+  },
+  {
+    "type": "G",
+    "named": false
+  },
+  {
+    "type": "Gain",
+    "named": false
+  },
+  {
+    "type": "Green",
+    "named": false
+  },
+  {
+    "type": "Haste",
+    "named": false
+  },
+  {
+    "type": "Hexproof",
+    "named": false
+  },
+  {
+    "type": "Lifelink",
+    "named": false
+  },
+  {
+    "type": "Mill",
+    "named": false
+  },
+  {
+    "type": "Monocolored",
+    "named": false
+  },
+  {
+    "type": "Multicolored",
+    "named": false
+  },
+  {
+    "type": "P",
+    "named": false
+  },
+  {
+    "type": "Pay",
+    "named": false
+  },
+  {
+    "type": "Player",
+    "named": false
+  },
+  {
+    "type": "Players",
+    "named": false
+  },
+  {
+    "type": "Protection",
+    "named": false
+  },
+  {
+    "type": "R",
+    "named": false
+  },
+  {
+    "type": "Red",
+    "named": false
+  },
+  {
+    "type": "S",
+    "named": false
+  },
+  {
+    "type": "Sacrifice",
+    "named": false
+  },
+  {
+    "type": "Scry",
+    "named": false
+  },
+  {
+    "type": "Tap",
+    "named": false
+  },
+  {
+    "type": "Tapped",
+    "named": false
+  },
+  {
+    "type": "Target",
+    "named": false
+  },
+  {
+    "type": "U",
+    "named": false
+  },
+  {
+    "type": "Untap",
+    "named": false
+  },
+  {
+    "type": "Untapped",
+    "named": false
+  },
+  {
+    "type": "Vigilance",
+    "named": false
+  },
+  {
+    "type": "Visit",
+    "named": false
+  },
+  {
+    "type": "W",
+    "named": false
+  },
+  {
+    "type": "White",
+    "named": false
+  },
+  {
+    "type": "X",
+    "named": false
+  },
+  {
+    "type": "a",
+    "named": false
+  },
+  {
+    "type": "add",
+    "named": false
+  },
+  {
+    "type": "all",
+    "named": false
+  },
+  {
+    "type": "and",
+    "named": false
+  },
+  {
+    "type": "another",
+    "named": false
+  },
+  {
+    "type": "any number of",
+    "named": false
+  },
+  {
+    "type": "any_subtype",
+    "named": true
+  },
+  {
+    "type": "artifact",
+    "named": false
+  },
+  {
+    "type": "artifacts",
+    "named": false
+  },
+  {
+    "type": "attacking",
+    "named": false
+  },
+  {
+    "type": "basic",
+    "named": false
+  },
+  {
+    "type": "basics",
+    "named": false
+  },
+  {
+    "type": "black",
+    "named": false
+  },
+  {
+    "type": "blue",
+    "named": false
+  },
+  {
+    "type": "can't be blocked",
+    "named": false
+  },
+  {
+    "type": "card",
+    "named": false
+  },
+  {
+    "type": "colorless",
+    "named": false
+  },
+  {
+    "type": "colorless_mana_cost_symbol",
+    "named": true
+  },
+  {
+    "type": "counter",
+    "named": false
+  },
+  {
+    "type": "create",
+    "named": false
+  },
+  {
+    "type": "creature",
+    "named": false
+  },
+  {
+    "type": "creatures",
+    "named": false
+  },
+  {
+    "type": "deathtouch",
+    "named": false
+  },
+  {
+    "type": "destroy",
+    "named": false
+  },
+  {
+    "type": "discard",
+    "named": false
+  },
+  {
+    "type": "draw",
+    "named": false
+  },
+  {
+    "type": "draws",
+    "named": false
+  },
+  {
+    "type": "each",
+    "named": false
+  },
+  {
+    "type": "eight",
+    "named": false
+  },
+  {
+    "type": "eighteen",
+    "named": false
+  },
+  {
+    "type": "eleven",
+    "named": false
+  },
+  {
+    "type": "enchantment",
+    "named": false
+  },
+  {
+    "type": "enchantments",
+    "named": false
+  },
+  {
+    "type": "every",
+    "named": false
+  },
+  {
+    "type": "everything",
+    "named": false
+  },
+  {
+    "type": "exile",
+    "named": false
+  },
+  {
+    "type": "fifteen",
+    "named": false
+  },
+  {
+    "type": "first strike",
+    "named": false
+  },
+  {
+    "type": "five",
+    "named": false
+  },
+  {
+    "type": "flying",
+    "named": false
+  },
+  {
+    "type": "four",
+    "named": false
+  },
+  {
+    "type": "fourteen",
+    "named": false
+  },
+  {
+    "type": "from",
+    "named": false
+  },
+  {
+    "type": "gain",
+    "named": false
+  },
+  {
+    "type": "get",
+    "named": false
+  },
+  {
+    "type": "green",
+    "named": false
+  },
+  {
+    "type": "haste",
+    "named": false
+  },
+  {
+    "type": "have",
+    "named": false
+  },
+  {
+    "type": "hexproof",
+    "named": false
+  },
+  {
+    "type": "hexproof from",
+    "named": false
+  },
+  {
+    "type": "instant",
+    "named": false
+  },
+  {
+    "type": "instants",
+    "named": false
+  },
+  {
+    "type": "land",
+    "named": false
+  },
+  {
+    "type": "lands",
+    "named": false
+  },
+  {
+    "type": "legendaries",
+    "named": false
+  },
+  {
+    "type": "legendary",
+    "named": false
+  },
+  {
+    "type": "life",
+    "named": false
+  },
+  {
+    "type": "lifelink",
+    "named": false
+  },
+  {
+    "type": "mill",
+    "named": false
+  },
+  {
+    "type": "monocolored",
+    "named": false
+  },
+  {
+    "type": "multicolored",
+    "named": false
+  },
+  {
+    "type": "nine",
+    "named": false
+  },
+  {
+    "type": "nineteen",
+    "named": false
+  },
+  {
+    "type": "one",
+    "named": false
+  },
+  {
+    "type": "opponent's control",
+    "named": false
+  },
+  {
+    "type": "planeswalker",
+    "named": false
+  },
+  {
+    "type": "planeswalkers",
+    "named": false
+  },
+  {
+    "type": "player",
+    "named": false
+  },
+  {
+    "type": "players",
+    "named": false
+  },
+  {
+    "type": "protection",
+    "named": false
+  },
+  {
+    "type": "red",
+    "named": false
+  },
+  {
+    "type": "s",
+    "named": false
+  },
+  {
+    "type": "sacrifice",
+    "named": false
+  },
+  {
+    "type": "scry",
+    "named": false
+  },
+  {
+    "type": "seven",
+    "named": false
+  },
+  {
+    "type": "seventeen",
+    "named": false
+  },
+  {
+    "type": "six",
+    "named": false
+  },
+  {
+    "type": "sixteen",
+    "named": false
+  },
+  {
+    "type": "snow",
+    "named": false
+  },
+  {
+    "type": "snows",
+    "named": false
+  },
+  {
+    "type": "sorceries",
+    "named": false
+  },
+  {
+    "type": "sorcery",
+    "named": false
+  },
+  {
+    "type": "tap",
+    "named": false
+  },
+  {
+    "type": "tapped",
+    "named": false
+  },
+  {
+    "type": "target",
+    "named": false
+  },
+  {
+    "type": "ten",
+    "named": false
+  },
+  {
+    "type": "thirteen",
+    "named": false
+  },
+  {
+    "type": "three",
+    "named": false
+  },
+  {
+    "type": "twelve",
+    "named": false
+  },
+  {
+    "type": "twenty",
+    "named": false
+  },
+  {
+    "type": "two",
+    "named": false
+  },
+  {
+    "type": "untap",
+    "named": false
+  },
+  {
+    "type": "untapped",
+    "named": false
+  },
+  {
+    "type": "up to",
+    "named": false
+  },
+  {
+    "type": "vigilance",
+    "named": false
+  },
+  {
+    "type": "visit",
+    "named": false
+  },
+  {
+    "type": "white",
+    "named": false
+  },
+  {
+    "type": "with",
+    "named": false
+  },
+  {
+    "type": "world",
+    "named": false
+  },
+  {
+    "type": "worlds",
+    "named": false
+  },
+  {
+    "type": "you control",
+    "named": false
+  },
+  {
+    "type": "your control",
+    "named": false
+  },
+  {
+    "type": "{",
+    "named": false
+  },
+  {
+    "type": "{Q}",
+    "named": false
+  },
+  {
+    "type": "{T}",
+    "named": false
+  },
+  {
+    "type": "}",
+    "named": false
+  },
+  {
+    "type": "~",
+    "named": false
+  }
+]
