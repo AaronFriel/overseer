@@ -1,8 +1,8 @@
 ========
-"Golgari Signet"
+"Riptide"
 ========
 
-{1}, {T}: Add {B}{G}.
+Tap all blue creatures.
 
 ---
 

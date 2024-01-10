@@ -138,11 +138,10 @@ module.exports = grammar({
       ),
 
     // Definitions for one_shot_effect and its components
-    one_shot_effect: ($) => prec(1, seq($.action_verb, choice($.subject, $.subject_list))),
+    one_shot_effect: ($) => seq($.action_verb, $.subject),
 
     pt_modifier_effect: ($) =>
       seq($.continuous_tense_qualifier, $.qualifier_type, 'get', $.pt_modifier),
-    subject_list: ($) => seq($.subject, repeat(seq('and', $.subject))),
     subject: ($) => choice($.subject_target, $.subject_nontarget),
 
     destroy_all_subtype: ($) => seq('Destroy', 'all', $.any_subtype),
@@ -177,14 +176,12 @@ module.exports = grammar({
 
     player: ($) => choice(keyword('player'), keyword('players')),
 
-    subject_target: ($) => {
-      return seq(
+    subject_target: ($) =>
+      seq(
         optional($.finite_quantity),
-        keyword('target'),
-        optional($.qualifier_color),
-        repeat1($.qualifier), // Zero or many qualifiers like "creature", "with flying"
-      );
-    },
+    keyword('target'),
+    choice(seq(optional($.qualifier_color), $.subtype), $.subtype),
+      ),
     tap_colored_creature: ($) =>
       seq($.mana_cost, ':', 'Tap', 'target', $.qualifier_color, 'creature', '.'),
 
@@ -234,7 +231,7 @@ module.exports = grammar({
       ),
 
     mana_cost: ($) => repeat1(seq('{', $.mana_cost_symbol, '}')), // Any sequence of mana cost symbols inside curly braces.
-    action_cost: ($) => seq($.action_verb, $.subject), // Sacrifice a creature, etc.
+    action_cost: ($) => $.one_shot_effect, // Sacrifice a creature, etc.
     cost: ($) =>
       repeat1Sep(
         choice(

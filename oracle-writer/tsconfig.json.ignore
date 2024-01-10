@@ -1,12 +1,15 @@
 {
   "compilerOptions": {
-    "target": "ESNext",
+    "lib": ["ES2022", "DOM"],
     "module": "ESNext",
+    "target": "ES2022",
     "moduleResolution": "Bundler",
     "allowArbitraryExtensions": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "strict": true,
+    "useDefineForClassFields": true,
+    "isolatedModules": true,
     "skipLibCheck": true
   },
   "include": ["src/**/*", "index.ts"]

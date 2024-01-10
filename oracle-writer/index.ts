@@ -1,14 +1,18 @@
 import * as fs from "node:fs/promises";
 import * as openai from "openai";
-import { ChatCompletionMessageParam } from "openai/resources/index.mjs";
 import { FunctionDefinition } from "openai/resources/shared";
 import Parser from "tree-sitter";
 import { $ } from "zx";
 // @ts-ignore
-import JavaScript from "tree-sitter-javascript";
+import { Sentinel, StreamingParser } from "fn-stream";
+import { createChatCompletionTool } from "fn-stream/adapters/openai";
+
+import { P, match } from "ts-pattern";
+
 import { Card, updateOracleFile } from "./src/updateOracleFile";
 import { escapeRegExp } from "./src/escapeRegExp";
 import { applyPatchHunk, parsePatch } from "./src/patch";
+import { ChatCompletionMessageParam } from "openai/resources/index.mjs";
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   main().catch((error) => {
@@ -18,34 +22,10 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 }
 
 const corpusFilename = "../oracle-sitter/corpus/current-test.txt";
-const OracleInstructions = `\
-You are a helpful, intelligent programming assistant for writing a Tree-Sitter grammar for Magic: The Gathering oracle text.
 
-You are an expert in writing parsers and grammars for natural and programming languages.
-
-You always:
-- Deeply understand the domain-specific context, including the function and sequence of keywords and abilities.
-- Reuse and extend existing grammar rules before creating new ones; additions should be strictly necessary.
-- Start with simple and generic constructs, introducing specificity only as required for correct rule engine functionality.
-- Ensure each rule directly contributes to the machine interpretability of the text, without extraneous natural language fluidity.
-- Maintain grammar consistency and predictability with uniform rule patterns for easier comprehension and debugging.
-- Structure the grammar to be modular and scalable, allowing seamless updates and extensions as the domain evolves.
-- Write hierarchically named production rules for readability, ensuring that each node in the syntax tree is interpretable by machines and humans alike.
-- Design the grammar to parse qualifiers irrespective of order, ensuring machine interpretability of rule text without imposing human linguistic preferences, unless order impacts game mechanics.
-- Write complete code that will run on the first attempt, without requiring the user to fill in any "TODOs" or implementations.
-
-## Tool Formatting
-
-When using tools, emit whitespace between every token that isn't part of a primitive value, e.g.:
-
-\`\`\`json
-{ "foo" : "bar" , "baz" : [ 1 , 2 , 3 ] , "quux" : { "thwomp" : [ "a" , "b" , "c" ] } }
-\`\`\`
-`;
-
-const UpdateGrammarFunction: FunctionDefinition = {
-  name: "update-code",
-  description: `\
+const updateGrammarFn = createChatCompletionTool(
+  "update-code",
+  `\
 # Update Code
 
 Use this tool to update the code - the grammar or otherwise - of the parser to handle new rules or fix problems.
@@ -58,7 +38,7 @@ You are an automated assistant, and the tool provides a means for you to ideate 
 
 Use the \`discussion\` key to role play a conversation between two engineers, and the \`conclusion\` key to describe the patches to implement the change.
 `,
-  parameters: {
+  {
     type: "object",
     properties: {
       discussion: {
@@ -111,6 +91,7 @@ Do not continue to the next property of the tool until the reviewer has seen and
             },
           },
           required: ["role", "message"],
+          additionalProperties: false,
         },
         minItems: 3,
       },
@@ -127,17 +108,17 @@ Do not continue to the next property of the tool until the reviewer has seen and
 * Hunks are contiguous, non-overlapping sequences of lines.
 * Group consecutive line changes together, deletions first, for readability.
 * Deletions and context lines must match the source document's exact whitespace and indentation:
-  * This ensures deletions reflect the exact content to be removed.
-  * Context lines must accurately represent the surrounding code for correct patch placement.
+* This ensures deletions reflect the exact content to be removed.
+* Context lines must accurately represent the surrounding code for correct patch placement.
 * Use a unique context line or a deletion for each hunk to pinpoint the patch location.
-  * Take great care to produce exact deletions and context. If you don't, the diff will not apply and you will waste the user's time.
+* Take great care to produce exact deletions and context. If you don't, the diff will not apply and you will waste the user's time.
 * Include up to 5 context lines per hunk unless combining adjacent hunks is justified for efficiency.
 * Include several context line or deletion in each hunk, to place the change in context and ensure you write valid syntax for your edit.
-  * Consider how an automated tool would interpret your patch. If it contains only additions, where will it insert the new code? The answer: the tool will fail.
+* Consider how an automated tool would interpret your patch. If it contains only additions, where will it insert the new code? The answer: the tool will fail.
 * When adding or changing rules, add or update a comment by the rule with an example of the text that should be parsed.
 
 I repeat: do not waste the user's time by giving them incomplete patches. Consider this in your discussion.
-    `,
+  `,
             type: "array",
             items: {
               type: "object",
@@ -162,36 +143,40 @@ A typical diff format:
 
 \`\`\`diff
 @@ (hunk location, not used) @@
-  context line
+context line
 -line to delete
 +line to add
-  another context line
+another context line
 \`\`\`
 
 ### Example:
 
 \`\`\`diff
 @@ ... @@
-  function foo() {
+function foo() {
 -  console.log('foo');
 +  console.log('bar');
-  }
+}
 \`\`\`
 
 Take care to note that a deletion serves a similar role as a context line and each must exactly match the source document's text, or else the hunk will not apply.
-    `,
+  `,
                   type: "string",
                 },
               },
+              required: ["filename", "patch"],
+              additionalProperties: false,
             },
           },
         },
         required: ["patches"],
+        additionalProperties: false,
       },
     },
     required: ["discussion", "conclusion"],
-  },
-};
+    additionalProperties: false,
+  } as const
+);
 
 const ReportTextError: FunctionDefinition = {
   name: "report-text-error",
@@ -233,11 +218,53 @@ You use this tool to indicate that no further changes are needed to the grammar,
   },
 };
 
+const tools = [
+  updateGrammarFn,
+  {
+    type: "function",
+    function: ReportTextError,
+  },
+  {
+    type: "function",
+    function: SubmitGrammarFunction,
+  },
+];
+
+const toolNames = tools.map((tool) => "`" + tool.name + "`").join(", ");
+
+const OracleInstructions = `\
+You are a helpful, intelligent programming assistant for writing a Tree-Sitter grammar for Magic: The Gathering oracle text.
+
+You are an expert in writing parsers and grammars for natural and programming languages.
+
+You always:
+- Deeply understand the domain-specific context, including the function and sequence of keywords and abilities.
+- Reuse and extend existing grammar rules before creating new ones; additions should be strictly necessary.
+- Start with simple and generic constructs, introducing specificity only as required for correct rule engine functionality.
+- Ensure each rule directly contributes to the machine interpretability of the text, without extraneous natural language fluidity.
+- Maintain grammar consistency and predictability with uniform rule patterns for easier comprehension and debugging.
+- Structure the grammar to be modular and scalable, allowing seamless updates and extensions as the domain evolves.
+- Write hierarchically named production rules for readability, ensuring that each node in the syntax tree is interpretable by machines and humans alike.
+- Design the grammar to parse qualifiers irrespective of order, ensuring machine interpretability of rule text without imposing human linguistic preferences, unless order impacts game mechanics.
+- Write complete code that will run on the first attempt, without requiring the user to fill in any "TODOs" or implementations.
+
+# Using Tools
+
+Call only one tool in each response, at most one of ${toolNames} or a response to the user in a message.
+You NEVER use more than one tool call.
+You MUST NOT use the "parallel" or "multi_tool_use.parallel" tools. Those are not supported.
+
+When using a tool, order properties in the same order as the schema.
+Prefer using tools which provide structured responses over unstructured text replies (even, e.g.: markdown).
+`;
+
+type UpdateGrammarArgs = (typeof updateGrammarFn)["$inferParameters"];
+
+function writeUnbuffered(text: string) {
+  process.stdout.write(text);
+}
+
 async function main() {
-  // await updateOracleFile();
-
-  // return;
-
   const oracleFile = JSON.parse(
     await fs.readFile("data/oracle-simplified.json", "utf-8")
   ) as Card[];
@@ -278,9 +305,6 @@ ${card.rulesText}
   await fs.writeFile(corpusFilename, corpusContent, "utf-8");
 
   thread = [];
-
-  const parser = new Parser();
-  parser.setLanguage(JavaScript);
 
   const grammarFileName = "../oracle-sitter/grammar.js";
   while (true) {
@@ -337,54 +361,49 @@ If the syntax tree looks correct, we can accept the current grammar.
       model: "gpt-4-1106-preview",
       temperature: 0.3,
       max_tokens: 2048,
-      tools: [
-        {
-          type: "function",
-          function: UpdateGrammarFunction,
-        },
-        {
-          type: "function",
-          function: ReportTextError,
-        },
-        {
-          type: "function",
-          function: SubmitGrammarFunction,
-        },
-      ],
+      stream: true,
+      tools,
     });
 
     let newGrammarFile = currentGrammarFile;
 
-    // find the list of rules
-    for (const choice of output.choices) {
-      for (const toolCall of choice.message?.tool_calls ?? []) {
-        if (toolCall.function.name === UpdateGrammarFunction.name) {
-          const {
-            conclusion,
-            discussion,
-            ...rest
-          }: {
-            discussion?: {
-              role: string;
-              message: string;
-            }[];
-            conclusion?: {
-              patches?: { patch: string }[];
-            };
-            [key: string]: any;
-          } = JSON.parse(toolCall.function.arguments);
+    const parser = new StreamingParser<UpdateGrammarArgs>({ stream: true });
 
-          for (const { role, message } of discussion ?? []) {
-            console.log(`👾 ${role}: ${message}`);
+    // find the list of rules
+    for await (const chunk of output) {
+      for (const choice of chunk.choices) {
+        if (choice.delta.content) {
+          writeUnbuffered(choice.delta.content);
+        }
+        for (const toolCall of choice.delta.tool_calls ?? []) {
+          if (!toolCall.function?.arguments) {
+            continue;
           }
-          for (const { patch } of conclusion?.patches ?? []) {
-            console.log("👾", patch);
-            const hunks = parsePatch(patch);
-            for (const hunk of hunks) {
-              newGrammarFile = applyPatchHunk(newGrammarFile, hunk);
+          if (toolCall.function.name === updateGrammarFn.name) {
+            const { events } = parser.parseIncremental(
+              toolCall.function.arguments
+            );
+
+            for (const event of events) {
+              match(event).with({ kind: 'complete', path: ['discussion', P._, 'role', Sentinel]}, ({ value }) => {
+                writeUnbuffered(`${value}: `);
+              }).with({ kind: 'partial', path: ['discussion', P._, 'message', Sentinel]}, ({ value }) => {
+                writeUnbuffered(value);
+              }).with({ kind: 'complete', path: ['discussion', P._, 'message', Sentinel]}, ({ }) => {
+                writeUnbuffered("\n\n");
+              }).with({ kind: 'complete', path: ['conclusion', 'patches', P._, 'patch', Sentinel]}, ({ value }) => {
+                writeUnbuffered(`👾 Applying patch:
+
+${value}
+`)
+
+                const hunks = parsePatch(value);
+                for (const hunk of hunks) {
+                  newGrammarFile = applyPatchHunk(newGrammarFile, hunk);
+                }
+              });
             }
           }
-          console.log("👾", JSON.stringify(rest, null, 2));
         }
       }
     }
@@ -413,9 +432,6 @@ async function getParseOutput(quotedName: string) {
 The error above was a result of calling \`tree-sitter generate\`.
 If the error is a rule conflict, often the issue is that we have two similar overlapping rules, and we need to think about a more systematic fix to the grammar, usually involving deleting one of the rules and refactoring the complexity.
 If the error is a JavaScript syntax or type error with a stack trace, in your discussion, the engineer should repeat the block of code surrounding the relevant lines, then analyze it and fix it. Remember that the error is often not due to the specific line in the stack trace, but may be contextual.
-
-Additionally, we currently have a number of "precedence" levels - we think these are a mistake and we need to think about simplifying the grammar.
-
 `,
     };
   }

@@ -415,30 +415,17 @@
       ]
     },
     "one_shot_effect": {
-      "type": "PREC",
-      "value": 1,
-      "content": {
-        "type": "SEQ",
-        "members": [
-          {
-            "type": "SYMBOL",
-            "name": "action_verb"
-          },
-          {
-            "type": "CHOICE",
-            "members": [
-              {
-                "type": "SYMBOL",
-                "name": "subject"
-              },
-              {
-                "type": "SYMBOL",
-                "name": "subject_list"
-              }
-            ]
-          }
-        ]
-      }
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "action_verb"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "subject"
+        }
+      ]
     },
     "pt_modifier_effect": {
       "type": "SEQ",
@@ -458,31 +445,6 @@
         {
           "type": "SYMBOL",
           "name": "pt_modifier"
-        }
-      ]
-    },
-    "subject_list": {
-      "type": "SEQ",
-      "members": [
-        {
-          "type": "SYMBOL",
-          "name": "subject"
-        },
-        {
-          "type": "REPEAT",
-          "content": {
-            "type": "SEQ",
-            "members": [
-              {
-                "type": "STRING",
-                "value": "and"
-              },
-              {
-                "type": "SYMBOL",
-                "name": "subject"
-              }
-            ]
-          }
         }
       ]
     },
@@ -817,20 +779,31 @@
           "type": "CHOICE",
           "members": [
             {
-              "type": "SYMBOL",
-              "name": "qualifier_color"
+              "type": "SEQ",
+              "members": [
+                {
+                  "type": "CHOICE",
+                  "members": [
+                    {
+                      "type": "SYMBOL",
+                      "name": "qualifier_color"
+                    },
+                    {
+                      "type": "BLANK"
+                    }
+                  ]
+                },
+                {
+                  "type": "SYMBOL",
+                  "name": "subtype"
+                }
+              ]
             },
             {
-              "type": "BLANK"
+              "type": "SYMBOL",
+              "name": "subtype"
             }
           ]
-        },
-        {
-          "type": "REPEAT1",
-          "content": {
-            "type": "SYMBOL",
-            "name": "qualifier"
-          }
         }
       ]
     },
@@ -933,6 +906,10 @@
     "qualifier": {
       "type": "CHOICE",
       "members": [
+        {
+          "type": "STRING",
+          "value": "~"
+        },
         {
           "type": "SYMBOL",
           "name": "qualifier_color"
@@ -1145,17 +1122,8 @@
       }
     },
     "action_cost": {
-      "type": "SEQ",
-      "members": [
-        {
-          "type": "SYMBOL",
-          "name": "action_verb"
-        },
-        {
-          "type": "SYMBOL",
-          "name": "subject"
-        }
-      ]
+      "type": "SYMBOL",
+      "name": "one_shot_effect"
     },
     "cost": {
       "type": "SEQ",
